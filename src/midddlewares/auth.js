@@ -1,15 +1,21 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const User = require('../models/db').User;
+const { User } = require('../models/db');
+const SECRET_KEY = 'your_secret_key';
 
 const authMiddleware = async (req, res, next) => {
       try {
         //Verify token and find user
-        const token = req.header('Authorization').replace('Bearer ', '');
-        const decoded = jwt.verify(token, 'your_jwt_secret_key');
-        const user = await User.findById(decoded._id);
+        const authHeader = req.headers.authorization;
+        if (!authHeader) {
+          return res.status(401).json({ error: 'Authorization header missing.' });
+        }
+        
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+        const decoded = jwt.verify(token, SECRET_KEY);
+        const user = await User.findById(decoded.userId);
         if (!user) {
-          throw new Error('User not found');
+          return res.status(401).json({ error: 'User not found' });
         }
         //Attach user to request
         req.user = {
@@ -19,7 +25,8 @@ const authMiddleware = async (req, res, next) => {
         };
         next();
       } catch (error) {
-        res.status(401).send({ error: 'Invalid or expired token.' });
+        res.status(401).json({ error: 'Invalid or expired token.' });
       }
-        }
-        module.exports = authMiddleware;
+};
+
+module.exports = authMiddleware;

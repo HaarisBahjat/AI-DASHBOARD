@@ -91,6 +91,12 @@ const conversationSchema = new mongoose.Schema({
   }
 },{ timestamps: true });
 
-module.exports = mongoose.model("User", userSchema);
-module.exports = mongoose.model("Dues", duesSchema);
-module.exports = mongoose.model("Conversation", conversationSchema);
+const User = mongoose.model("User", userSchema);
+const Dues = mongoose.model("Dues", duesSchema);
+const Conversation = mongoose.model("Conversation", conversationSchema);
+
+module.exports = {
+  User,
+  Dues,
+  Conversation
+};

@@ -1,8 +1,8 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const User = require('../models/user.model');
-const e = require('express');
+const { User } = require('../models/db');
 const SECRET_KEY = 'your_secret_key';
+const JWT_REFRESH_SECRET_KEY = 'your_refresh_secret_key';
 
 // signup controller
 exports.signup = async (req, res) => {
@@ -12,17 +12,17 @@ exports.signup = async (req, res) => {
             return res.status(400).json({ message: 'Username, email and password are required' });
         }
      //check if user exists 
-        const existingUser = await User.findOne({ username });
+        const existingUser = await User.findOne({ email });
         if (existingUser) {
-            return res.status(400).json({ message: 'Username already exists' });
+            return res.status(400).json({ message: 'Email already exists' });
         }
 
        // Hash password and create user
         const hashedPassword = await bcrypt.hash(password, 10);
-       const user= await User.create({ username, password: hashedPassword, email,Role:"USER" });
+       const user= await User.create({ name: username, passwordHash: hashedPassword, email, role:"USER" });
         res.status(201).json({ message: 'User created successfully', userId: user._id });
     } catch (error) {
-        res.status(500).json({ message: 'Error creating user', error });
+        res.status(500).json({ message: 'Error creating user', error: error.message });
     }
 };
 
@@ -34,8 +34,8 @@ exports.login = async (req, res) => {
             return res.status(400).json({ message: 'Username and password are required' });
         }
 
-        // Find user by username
-        const user = await User.findOne({ username });
+        // Find user by email
+        const user = await User.findOne({ email: username });
         if (!user) {
             return res.status(400).json({ message: 'Invalid username or password' });
         }
@@ -45,7 +45,7 @@ exports.login = async (req, res) => {
         }
 
         // Compare password
-        const isPasswordValid = await bcrypt.compare(password, user.hashedPassword);
+        const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
         if (!isPasswordValid) {
             return res.status(400).json({ message: 'Invalid username or password' });
         }
@@ -53,24 +53,23 @@ exports.login = async (req, res) => {
         // Generate JWT token
         const token = jwt.sign({ userId: user._id, role: user.role }, SECRET_KEY, { expiresIn: '1h' });
         //Generate refresh token
-        const refreshToken = jwt.sign({ userId: user._id, tokenType: 'refresh' }, SECRET_KEY, { expiresIn: '7d' });
+        const refreshToken = jwt.sign({ userId: user._id, tokenType: 'refresh' }, JWT_REFRESH_SECRET_KEY, { expiresIn: '7d' });
         //store refresh token in db
         user.refreshToken = refreshToken;
         user.lastLoginAt = new Date();
-        res.status(200).json({ message: 'Login successful', token, refreshToken, userId: user._id });
         await user.save();
         //Sent refresh token in http only cookie
         res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: true, sameSite: 'Strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
-        res.json({access: token});
+        res.status(200).json({ message: 'Login successful', access: token, refreshToken, userId: user._id });
     } catch (error) {
-        res.status(500).json({ message: 'Error logging in', error });
+        res.status(500).json({ message: 'Error logging in', error: error.message });
     }
 };
 
 //Refresh token controller
 exports.refreshToken = async (req, res) => {
     try {
-        const { refreshToken } = req.cookies.refreshToken;
+        const refreshToken = req.cookies.refreshToken;
 
         if (!refreshToken) {
             return res.status(401).json({ message: 'Refresh token is required' });
@@ -91,25 +90,29 @@ exports.refreshToken = async (req, res) => {
         // Generate new access token
         const newAccessToken = jwt.sign({ userId: user._id, role: user.role }, SECRET_KEY, { expiresIn: '1h' });
 
-        res.json({ access: newAccessToken });
+        res.status(200).json({ access: newAccessToken });
     } catch (error) {
-        res.status(500).json({ message: 'Error refreshing token', error });
+        res.status(500).json({ message: 'Error refreshing token', error: error.message });
     }
 };
 
 exports.logout = async (req, res) => {
     try {
-        const { refreshToken } = req.cookies.refreshToken;
-        if (refreshToken) {
-            await user.updateOne({ refreshToken }, { $unset: { refreshToken: "" } });
+        const userId = req.user?._id;
+        if (!userId) {
+            return res.status(401).json({ message: 'User not authenticated' });
         }
+        
+        // Clear refresh token from database
+        await User.findByIdAndUpdate(userId, { refreshToken: null });
+        
         res.clearCookie('refreshToken',{
             httpOnly: true,
             secure: true,
             sameSite: 'Strict'
         });
-        res.json({ message: 'Logout successful' });
+        res.status(200).json({ message: 'Logout successful' });
     } catch (error) {
-        res.status(500).json({ message: 'Error logging out', error });
+        res.status(500).json({ message: 'Error logging out', error: error.message });
     }
 };
