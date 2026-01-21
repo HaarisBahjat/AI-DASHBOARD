@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const schema = mongoose.Schema;
-mongoose.connect("mongodb+srv://haarismalick4_db_user:Lz5zswsFfrEAF5r1@cluster88.fozut1k.mongodb.net/dataBase")
 const ObjectId = mongoose.Schema.Types.ObjectId; // ✅ correct way
 
 const userSchema = new mongoose.Schema(
@@ -59,6 +58,10 @@ const duesSchema = new mongoose.Schema(
     },
     amount: {
       type: Number,
+      required: true
+    },
+    title: {
+      type: String,
       required: true
     },
     dueDate: {
