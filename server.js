@@ -1,11 +1,13 @@
 const express = require('express');
-const app = express();
+const mongoose = require('mongoose');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const mongoose = require('mongoose');
+const overdueCron = require('./src/cron/overdues.cron');
 const authRouter = require('./src/routes/auth.router');
 const protectedRouter = require('./src/routes/protected.router');
 const duesRoute = require('./src/routes/dues.route');
+
+const app = express();
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -24,13 +26,21 @@ app.use('/api/auth', authRouter);
 app.use('/api/protected', protectedRouter);
 app.use('/api/dues', duesRoute);
 
-// Start the server after connecting to MongoDB
-
+// Connect to MongoDB and start server
 async function main() {
-    await mongoose.connect("mongodb+srv://haarismalick4_db_user:Lz5zswsFfrEAF5r1@cluster88.fozut1k.mongodb.net/dataBase")
-    console.log("Connected to MongoDB");
-    app.listen(3004, () => {
-        console.log("Server is running on port 3004");
+    await mongoose.connect('mongodb+srv://haarismalick4_db_user:Lz5zswsFfrEAF5r1@cluster88.fozut1k.mongodb.net/dataBase');
+    console.log('Connected to MongoDB');
+    
+    // Start the overdue cron job
+    overdueCron.start();    
+    console.log('Overdue cron job started.');
+
+    app.listen(3003, () => {
+        console.log('Server is running on port 3003');
     });
 }
-main()
+
+main().catch(err => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+});
