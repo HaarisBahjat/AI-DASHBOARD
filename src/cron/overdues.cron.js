@@ -2,7 +2,7 @@ const cron = require('node-cron');
 const Due= require('../models/db').Dues;
 
 // Schedule a cron job to run every day at midnight
-const overdueCron= cron.schedule('0 0 * * *', async () => {
+const overdueCron= cron.schedule('* * * * *', async () => {
     try {
         const now = new Date();
         const result = await Due.updateMany(
