@@ -4,8 +4,9 @@ const authMiddleware = require('../midddlewares/auth');
 const reminder= require("../models/db").Reminder;
 
 router.get('/reminders', authMiddleware, async (req, res) => {
-    const reminders = await reminder.find({ userId: req.user.id });
+    const reminders = await reminder.find({ userId: req.user._id });
     res.json(reminders);
 });
+
 
 module.exports = router;

@@ -28,6 +28,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/protected', protectedRouter);
 app.use('/api/dues', duesRoute);
 app.use('/api/reminders', reminderRoute);
+app.use('/api/reminder-outcomes', require('./src/routes/reminderRead.route'));
 
 
 // Connect to MongoDB and start server
@@ -35,12 +36,15 @@ async function main() {
     await mongoose.connect('mongodb+srv://haarismalick4_db_user:Lz5zswsFfrEAF5r1@cluster88.fozut1k.mongodb.net/dataBase');
     console.log('Connected to MongoDB');
     
+
+ reminderCron.start();    
+    console.log('Reminder cron job started.');
+
     // Start the overdue cron job
     overdueCron.start();    
     console.log('Overdue cron job started.');
     // Start the reminder cron job
-    reminderCron.start();    
-    console.log('Reminder cron job started.');
+   
 
     app.listen(3003, () => {
         console.log('Server is running on port 3003');
