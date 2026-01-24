@@ -108,10 +108,53 @@ const reminderSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-const conversationSchema = new mongoose.Schema({
+
+const conversationSessionSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
+    required: true
+  },
+  dueId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Dues",
+    required: true
+  },
+  reminderLogId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "ReminderLog",
+    required: false
+  },
+
+  channel: {
+    type: String,
+    enum: ["TEXT", "VOICE"],
+    default: "VOICE"
+  },
+  status: {
+    type: String,
+    enum: ["STARTED", "IN_PROGRESS", "COMPLETED"],
+    default: "STARTED"
+  },
+  finalOutcome: {
+    action:{
+      type: String,
+      enum: ["PAID", "SNOOZE", "DISMISSED", "NO_RESPONSE"],
+    },
+    notes: String
+  }
+
+}, { timestamps: true });
+
+
+
+
+
+
+const conversationMessageSchema = new mongoose.Schema({
+ conversationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "ConversationSession",
     required: true
   },
   roles: {
@@ -122,17 +165,22 @@ const conversationSchema = new mongoose.Schema({
   message: {
     type: String,
     required: true
-  }
+  },
+  rawAudioUrl: {
+      type: String // optional, future voice storage
+    }
 },{ timestamps: true });
 
 const User = mongoose.model("User", userSchema);
 const Dues = mongoose.model("Dues", duesSchema);
-const Conversation = mongoose.model("Conversation", conversationSchema);
+const Conversation = mongoose.model("Conversation", conversationMessageSchema);
 const Reminder = mongoose.model("Reminder", reminderSchema);
+const ConversationSession = mongoose.model("ConversationSession", conversationSessionSchema);
 
 module.exports = {
   User,
   Dues,
   Conversation,
-  Reminder
+  Reminder,
+  ConversationSession
 };
