@@ -6,6 +6,8 @@ const overdueCron = require('./src/cron/overdues.cron');
 const authRouter = require('./src/routes/auth.router');
 const protectedRouter = require('./src/routes/protected.router');
 const duesRoute = require('./src/routes/dues.route');
+const reminderCron = require('./src/cron/reminder.cron');
+const reminderRoute = require('./src/routes/reminder.route');
 
 const app = express();
 
@@ -25,6 +27,8 @@ app.use(cors({
 app.use('/api/auth', authRouter);
 app.use('/api/protected', protectedRouter);
 app.use('/api/dues', duesRoute);
+app.use('/api/reminders', reminderRoute);
+
 
 // Connect to MongoDB and start server
 async function main() {
@@ -34,6 +38,9 @@ async function main() {
     // Start the overdue cron job
     overdueCron.start();    
     console.log('Overdue cron job started.');
+    // Start the reminder cron job
+    reminderCron.start();    
+    console.log('Reminder cron job started.');
 
     app.listen(3003, () => {
         console.log('Server is running on port 3003');

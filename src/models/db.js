@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const schema = mongoose.Schema;
-const ObjectId = mongoose.Schema.Types.ObjectId; // ✅ correct way
+const ObjectId = mongoose.Schema.Types.ObjectId; //  correct way
 
 const userSchema = new mongoose.Schema(
   {
@@ -77,6 +77,37 @@ const duesSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const reminderSchema = new mongoose.Schema({
+
+  userId: {
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: "User",
+    required: true
+  },
+  dueId: {
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: "Dues",  
+    required: true
+  },
+  reminderType: {
+    type: String,
+    enum: ["UPCOMING_DUE", "DUE_TODAY", "OVERDUE"],
+    required: true
+  },
+  messageText: {
+    type: String,
+    required: true
+  },
+  triggerSource: {
+    type: String,
+    enum: ["CRON_JOB", "MANUAL"],
+    default: "CRON_JOB"
+  },
+  metadata: {
+    type: Object
+  }
+}, { timestamps: true });
+
 const conversationSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -97,9 +128,11 @@ const conversationSchema = new mongoose.Schema({
 const User = mongoose.model("User", userSchema);
 const Dues = mongoose.model("Dues", duesSchema);
 const Conversation = mongoose.model("Conversation", conversationSchema);
+const Reminder = mongoose.model("Reminder", reminderSchema);
 
 module.exports = {
   User,
   Dues,
-  Conversation
+  Conversation,
+  Reminder
 };
