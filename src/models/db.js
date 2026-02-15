@@ -72,6 +72,10 @@ const duesSchema = new mongoose.Schema(
       type: String,
       enum: ["PAID", "UNPAID", "OVERDUE"],
       default: "UNPAID"
+    },
+    snoozeDate: {
+      type: Date,
+      default: null
     }
   },
   { timestamps: true }

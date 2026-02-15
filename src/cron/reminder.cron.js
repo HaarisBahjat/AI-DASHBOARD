@@ -15,53 +15,75 @@ const reminderCron = cron.schedule('* * * * *', async () => {
 
         const upcomingDues = await Due.find({
             dueDate: { $gte: todayStart, $lte: upcomingLimit },
-            status: 'UNPAID'
+            status: { $in: ['UNPAID', 'OVERDUE'] }
         });
+        console.log('Found upcomingDues:', upcomingDues.length);
         for(const due of upcomingDues){
-            await require('../Service/reminder.service').createReminder({
-                userId: due.userId,
-                dueId: due,
-                reminderType: 'UPCOMING_DUE',
-                messageText: `Reminder: Your due "${due.title}" of amount $${due.amount} is coming up on ${due.dueDate.toDateString()}. Please ensure timely payment.`,
-                triggerSource: 'CRON_JOB',
-                metadata: {}
-            });
+            try {
+                await require('../Service/reminder.service').createReminder({
+                    userId: due.userId,
+                    dueId: due._id,
+                    due: due,
+                    reminderType: 'UPCOMING_DUE',
+                    messageText: `Reminder: Your due "${due.title}" of amount $${due.amount} is coming up on ${due.dueDate.toDateString()}. Please ensure timely payment.`,
+                    triggerSource: 'CRON_JOB',
+                    metadata: {}
+                });
+                console.log('UPCOMING_DUE reminder created for due:', due._id);
+            } catch(err) {
+                console.error('Error creating UPCOMING_DUE reminder:', err.message);
+            }
         }
 
         //Due today
         const dueTodayDues = await Due.find({
             dueDate: { $gte: todayStart, $lte: todayEnd },
-            status: 'UNPAID'
+            status: { $in: ['UNPAID', 'OVERDUE'] }
         });
+        console.log('Found dueTodayDues:', dueTodayDues.length);
         for(const due of dueTodayDues){
-            await require('../Service/reminder.service').createReminder({
-                userId: due.userId,
-                dueId: due,
-                reminderType: 'DUE_TODAY',
-                messageText: `Alert: Your due "${due.title}" of amount $${due.amount} is due today (${due.dueDate.toDateString()}). Please make the payment to avoid penalties.`,
-                triggerSource: 'CRON_JOB',
-                metadata: {}
-            });
+            try {
+                await require('../Service/reminder.service').createReminder({
+                    userId: due.userId,
+                    dueId: due._id,
+                    due: due,
+                    reminderType: 'DUE_TODAY',
+                    messageText: `Alert: Your due "${due.title}" of amount $${due.amount} is due today (${due.dueDate.toDateString()}). Please make the payment to avoid penalties.`,
+                    triggerSource: 'CRON_JOB',
+                    metadata: {}
+                });
+                console.log('DUE_TODAY reminder created for due:', due._id);
+            } catch(err) {
+                console.error('Error creating DUE_TODAY reminder:', err.message);
+            }
         }
 
         //Overdue dues
         const overdueDues = await Due.find({
             dueDate: { $lt: todayStart },
-            status: 'UNPAID'
+            status: { $in: ['UNPAID', 'OVERDUE'] }
         });
+        console.log('Found overdueDues:', overdueDues.length);
         for(const due of overdueDues){
-            await require('../Service/reminder.service').createReminder({
-                userId: due.userId,
-                dueId: due,
-                reminderType: 'OVERDUE',
-                messageText: `Urgent: Your due "${due.title}" of amount $${due.amount} was due on ${due.dueDate.toDateString()} and is now overdue. Please address this immediately to avoid further consequences.`,
-                triggerSource: 'CRON_JOB',
-                metadata: {}
-            });
+            try {
+                await require('../Service/reminder.service').createReminder({
+                    userId: due.userId,
+                    due: due,
+                    dueId: due._id,
+                    reminderType: 'OVERDUE',
+                    messageText: `Urgent: Your due "${due.title}" of amount $${due.amount} was due on ${due.dueDate.toDateString()} and is now overdue. Please address this immediately to avoid further consequences.`,
+                    triggerSource: 'CRON_JOB',
+                    metadata: {}
+                });
+                console.log('OVERDUE reminder created for due:', due._id);
+            } catch(err) {
+                console.error('Error creating OVERDUE reminder:', err.message);
+            }
         }
     }
     catch(error){
         console.error('Error in Reminder Cron Job:', error.message);
+        console.error('Stack:', error.stack);
     }
 }, {
     scheduled: true,

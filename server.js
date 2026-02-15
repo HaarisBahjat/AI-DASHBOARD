@@ -29,7 +29,8 @@ app.use('/api/protected', protectedRouter);
 app.use('/api/dues', duesRoute);
 app.use('/api/reminders', reminderRoute);
 app.use('/api/reminder-outcomes', require('./src/routes/reminderRead.route'));
-
+app.use('/api/conversations', require('./src/routes/conversation.routes'));
+app.use("/audio", express.static("src/audio"));
 
 // Connect to MongoDB and start server
 async function main() {
