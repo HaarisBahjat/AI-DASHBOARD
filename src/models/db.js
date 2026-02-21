@@ -140,6 +140,21 @@ const conversationSessionSchema = new mongoose.Schema({
     enum: ["STARTED", "IN_PROGRESS", "COMPLETED"],
     default: "STARTED"
   },
+  clarificationState: {
+  type: String,
+  enum: ["NONE", "AWAITING"],
+  default: "NONE"
+},
+
+pendingIntent: {
+  type: String,
+  default: null
+},
+
+pendingData: {
+  type: Object,
+  default: null
+},
   finalOutcome: {
     action:{
       type: String,
