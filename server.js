@@ -9,8 +9,25 @@ const protectedRouter = require('./src/routes/protected.router');
 const duesRoute = require('./src/routes/dues.route');
 const reminderCron = require('./src/cron/reminder.cron');
 const reminderRoute = require('./src/routes/reminder.route');
+const http = require('http');
+const {server} = require("socket.io");
+const voiceSocket = require('./src/Sockets/voice.socket');
+
+
+
 
 const app = express();
+
+const server= http.createServer(app);
+const io = new server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
+voiceSocket(io);
+
+module.exports = {io};
 
 // Middleware to parse JSON bodies
 app.use(express.json());
