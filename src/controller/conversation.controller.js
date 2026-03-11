@@ -46,14 +46,14 @@ exports.createConversation=async(req,res)=>{
         //convert text -voice message if channel is VOICE
          let audioFile=null;
         if(channel==="VOICE"){
-            try{
-               console.log("Calling ElevenLabs TTS...");
-const audiobuffer = await textToSpeech(systemText);
-console.log("ElevenLabs returned buffer length:", audiobuffer?.length);
-                const audiopath= path.join(__dirname, `../audio/${session._id}.mp3`);
+            try {
+                console.log("Calling text-to-speech service...");
+                const audiobuffer = await textToSpeech(systemText);
+                console.log("TTS service returned buffer length:", audiobuffer ? audiobuffer.length : audiobuffer);
+                const audiopath = path.join(__dirname, `../audio/${session._id}.mp3`);
                 fs.writeFileSync(audiopath, audiobuffer);
                 audioFile = `/audio/${session._id}.mp3`;
-            }catch(ttsErr){
+            } catch (ttsErr) {
                 console.error("TTS failed for conversation:", session._id, ttsErr?.message || ttsErr);
                 // Don't fail the whole API call if TTS fails; return conversation with audioFile=null
                 audioFile = null;

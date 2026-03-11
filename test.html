@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Socket Test</title>
+</head>
+<body>
+
+<button onclick="sendTest()">Send  Voice</button>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+<script>
+  const socket = io("http://localhost:3003");
+
+  socket.on("connect", () => {
+    console.log("Connected:", socket.id);
+  });
+
+  socket.on("transcription-started", (data) => {
+    console.log("Server:", data.message);
+  });
+
+  socket.on("transcription-completed", (data) => {
+    console.log("Reply:", data.message);
+
+    if (data.audioBuffer) {
+      const blob = new Blob([new Uint8Array(data.audioBuffer)], { type: "audio/mpeg" });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.play();
+    }
+  });
+
+  async function sendTest() {
+
+    // Replace with a real small audio file later
+    const response = await fetch("/audio/sample4.mp3");
+    const buffer = await response.arrayBuffer();
+
+    socket.emit("voice-message", {
+      audioBuffer: buffer
+    });
+  }
+
+</script>
+
+</body>
+</html>
