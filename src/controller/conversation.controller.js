@@ -3,9 +3,11 @@ const conversationMessage=require('../models/db').Conversation;
 const Due =require('../models/db').Dues;
 const path=require('path');
 const fs=require('fs');
+const {processVoiceMessage}=require('../Service/voice.service');
 const {textToSpeech}=require('../Service/tts.service');
 const sttService = require('../Service/stt.service');
 const llmService=require('../Service/llm.service');
+const { audio } = require('@elevenlabs/elevenlabs-js/api/resources/dubbing');
 
 //CREATE A NEW CONVERSATION SESSION
 exports.createConversation=async(req,res)=>{
@@ -179,7 +181,16 @@ exports.completeConversation=async(req,res)=>{
 
 //VOICE MESSAGE UPLOAD AND CONVERSION TO TEXT
 exports.addVoiceMessage = async (req, res) => {
-    try {
+    const result= await processVoiceMessage({
+        audioBuffer: req.file.buffer,
+        conversationId: req.params.conversationId,
+        userId: req.user._id
+    });
+    res.json({
+        message: result.message,
+        audioFile: result.audioFile
+    });
+    /*try {
 
         if (typeof sttService?.speechToText !== "function") {
             return res.status(500).json({
@@ -546,8 +557,8 @@ exports.addVoiceMessage = async (req, res) => {
     return res.status(201).json({
         message: text,
         audioFile
-    });
-}
+    });*/
+};
 
 
 //INTENT DETECTION USING LLM
