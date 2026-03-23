@@ -29,15 +29,15 @@ exports.signup = async (req, res) => {
 // login controller
 exports.login = async (req, res) => {
     try {
-        const { username, password } = req.body;
-        if(!username || !password) {
-            return res.status(400).json({ message: 'Username and password are required' });
+        const { email, password } = req.body;
+        if(!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
         }
 
         // Find user by email
-        const user = await User.findOne({ email: username });
+        const user = await User.findOne({ email });
         if (!user) {
-            return res.status(400).json({ message: 'Invalid username or password' });
+            return res.status(400).json({ message: 'Invalid email or password' });
         }
 
         if(!user.isActive){
@@ -47,7 +47,7 @@ exports.login = async (req, res) => {
         // Compare password
         const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
         if (!isPasswordValid) {
-            return res.status(400).json({ message: 'Invalid username or password' });
+            return res.status(400).json({ message: 'Invalid email or password' });
         }
 
         // Generate JWT token
@@ -60,7 +60,7 @@ exports.login = async (req, res) => {
         await user.save();
         //Sent refresh token in http only cookie
         res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: true, sameSite: 'Strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
-        res.status(200).json({ message: 'Login successful', access: token, refreshToken, userId: user._id });
+        res.status(200).json({ message: 'Login successful', token: token, user: { _id: user._id } });
     } catch (error) {
         res.status(500).json({ message: 'Error logging in', error: error.message });
     }

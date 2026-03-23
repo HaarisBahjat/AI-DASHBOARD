@@ -3,11 +3,30 @@ const conversationMessage=require('../models/db').Conversation;
 const Due =require('../models/db').Dues;
 const path=require('path');
 const fs=require('fs');
+const mongoose = require('mongoose');
 const {processVoiceMessage}=require('../Service/voice.service');
 const {textToSpeech}=require('../Service/tts.service');
 const sttService = require('../Service/stt.service');
 const llmService=require('../Service/llm.service');
 const { audio } = require('@elevenlabs/elevenlabs-js/api/resources/dubbing');
+
+// Helper function to validate MongoDB ObjectId
+const isValidObjectId = (id) => {
+    return mongoose.Types.ObjectId.isValid(id);
+};
+
+// Helper function to validate conversationId and handle errors
+const validateConversationId = (conversationId, res) => {
+    if (!conversationId) {
+        res.status(400).json({ error: "Conversation ID is required" });
+        return false;
+    }
+    if (!isValidObjectId(conversationId)) {
+        res.status(400).json({ error: "Invalid conversation ID format" });
+        return false;
+    }
+    return true;
+};
 
 //CREATE A NEW CONVERSATION SESSION
 exports.createConversation=async(req,res)=>{
@@ -21,6 +40,11 @@ exports.createConversation=async(req,res)=>{
         
         if(!dueId){
             return res.status(400).json({error:"dueId is required"});
+        }
+
+        // Validate dueId format
+        if (!isValidObjectId(dueId)) {
+            return res.status(400).json({error:"Invalid dueId format"});
         }
 
         const due = await Due.findById(dueId);
@@ -80,6 +104,12 @@ exports.createConversation=async(req,res)=>{
 exports.getConversation=async(req,res)=>{
     try{
         const {conversationId }=req.params;
+        
+        // Validate conversation ID format
+        if (!validateConversationId(conversationId, res)) {
+            return;
+        }
+        
         const session=await conversationSession.findById(conversationId);
         if(!session){
             return  res.status(404).json({message:"Conversation session not found"});
@@ -102,6 +132,12 @@ exports.getConversation=async(req,res)=>{
 exports.addMessage=async(req,res)=>{
     try{
         const {conversationId}=req.params;
+        
+        // Validate conversation ID format
+        if (!validateConversationId(conversationId, res)) {
+            return;
+        }
+        
         const {message}=req.body;
         const session=await conversationSession.findById(conversationId);
         if(!session){
@@ -134,6 +170,12 @@ exports.addMessage=async(req,res)=>{
 exports.completeConversation=async(req,res)=>{
     try{
         const {conversationId}=req.params;
+        
+        // Validate conversation ID format
+        if (!validateConversationId(conversationId, res)) {
+            return;
+        }
+        
         const {action,snoozeDate}=req.body;
         const session=await conversationSession.findById(conversationId);
         if(!session){
