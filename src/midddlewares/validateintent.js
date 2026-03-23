@@ -3,13 +3,13 @@ exports.validateIntent=(intentData)=>{
     throw new Error("Invalid LLM response format");
   }
 
-  const allowedIntents = ["CREATE_DUE", "UPDATE_DUE", "DELETE_DUE", "LIST_DUES", "GENERAL_CHAT"];
+  const allowedIntents = ["create_due", "update_due", "delete_due", "list_dues", "general_chat"];
 
   if (!allowedIntents.includes(intentData.intent)) {
     throw new Error("Invalid intent detected");
   }
 
-  if (intentData.intent === "CREATE_DUE") {
+  if (intentData.intent === "create_due") {
     if (!intentData.title || typeof intentData.title !== "string") {
       throw new Error("Invalid or missing title");
     }

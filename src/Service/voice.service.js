@@ -1,13 +1,24 @@
 const sttService = require("./stt.service");
 const llmService = require("./llm.service");
 const { textToSpeech } = require("./tts.service");
+const mongoose = require("mongoose");
 
 const conversationSession=require('../models/db').ConversationSession;
 const conversationMessage=require('../models/db').Conversation;
 const Due =require('../models/db').Dues;
 
+// Helper function to validate MongoDB ObjectId
+const isValidObjectId = (id) => {
+    return mongoose.Types.ObjectId.isValid(id);
+};
+
 exports.processVoiceMessage = async ({conversationId, audioBuffer,userId}) => {
     try {
+        // Validate conversationId if provided
+        if (conversationId && !isValidObjectId(conversationId)) {
+            throw new Error("Invalid conversation ID format");
+        }
+
         // Step 1: Convert audio to text
         const text= await sttService.speechToText(audioBuffer);
       if(!text || text.trim() === ""){
@@ -38,7 +49,7 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer,userId}) => {
     //saave user message to db
     const userMessage= await conversationMessage.create({
         conversationId,
-        roles:"user",
+        roles:"USER",
         message:text
     });
     currentSession.status="IN_PROGRESS";
@@ -99,8 +110,12 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer,userId}) => {
       replytext="Sorry, I couldn't understand your request. Could you please rephrase?";
       return finalizeReply(session, replytext);
     }
+    
+    // Normalize intent to lowercase for consistent comparison
+    const normalizedIntent = intentData.intent.toLowerCase().trim();
+    
     //CREATE DUE INTENT LOGIC
-    if(intentData.intent==="create_due"){
+    if(normalizedIntent === "create_due"){
       const missing=[];
       if(!intentData.title){
         missing.push("title");
@@ -139,14 +154,17 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer,userId}) => {
       return finalizeReply(currentSession, replytext);
     }
     //UPDATE DUE INTENT LOGIC
-    if(intentData.intent==="update_due"){
-      if(!intentData.dueId){
-        replytext="To update a due, please provide the due ID.";
+    if(normalizedIntent ==="update_due"){
+      if(!intentData.title){
+        replytext="To update a due, please provide the title of the due.";
         return finalizeReply(currentSession, replytext);
       }
-      const due= await Due.findById(intentData.dueId);
+      const due= await Due.findOne({
+        userId,
+        title:intentData.title
+      });
       if(!due){
-        replytext="Due not found. Please provide a valid due ID.";
+        replytext="Due not found. Please provide a valid due title.";
         return finalizeReply(currentSession, replytext);
       }
       const updateFields={};
@@ -171,7 +189,7 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer,userId}) => {
     }
 
     const updatedDue = await Due.findByIdAndUpdate(
-      intentData.dueId,
+      due._id,
       updateFields,
       { new: true }
     );
@@ -181,7 +199,7 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer,userId}) => {
     return finalizeReply(currentSession, replytext);
   }
     //DELETE DUE INTENT LOGIC
-    if(intentData.intent==="delete_due"){
+    if(normalizedIntent ==="delete_due"){
       const due= await Due.findOne({
         userId,
         title:intentData.title
@@ -195,8 +213,8 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer,userId}) => {
       return finalizeReply(currentSession, replytext);
 
     }
-    //LISST DUES INTENT LOGIC
-    if(intentData.intent==="list_dues"){
+    //LIST DUES INTENT LOGIC
+    if(normalizedIntent ==="list_dues"){
       const dues= await Due.find({userId});
       if(dues.length===0){
         replytext="You have no dues at the moment.";
@@ -207,7 +225,7 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer,userId}) => {
       return finalizeReply(currentSession, replytext);
     }
     //FALLBACK FOR UNRECOGNIZED INTENTS
-    if(intentData.intent==="GENERAL_CHAT"){
+    if(normalizedIntent ==="general_chat"){
         replytext = `You said "${text}". I can help you create, update, delete, or list dues.`;
       return finalizeReply(currentSession, replytext);
     }
