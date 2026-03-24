@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import VoiceChat from "./VoiceChat";
-import LoginForm from "./LoginForm";
+import VoiceChat from './VoiceChat';
+import LoginForm from './LoginForm';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    // Check if user is already logged in
     const token = localStorage.getItem('authToken');
     if (token) {
       setIsLoggedIn(true);
     }
   }, []);
 
-  const handleLogin = (token) => {
+  const handleLogin = () => {
     setIsLoggedIn(true);
   };
 

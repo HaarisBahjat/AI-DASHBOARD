@@ -21,13 +21,8 @@ const LoginForm = ({ onLogin }) => {
       const data = await response.json();
 
       if (response.ok) {
-        // Save token to localStorage
         localStorage.setItem('authToken', data.token);
         localStorage.setItem('userId', data.user._id);
-
-        console.log('✅ Login successful! Token saved.');
-        console.log('Token:', data.token);
-        console.log('User ID:', data.user._id);
 
         alert('✅ Login successful! You can now use the voice chat.');
         onLogin(data.token);
@@ -35,7 +30,6 @@ const LoginForm = ({ onLogin }) => {
         alert(`❌ Login failed: ${data.message}`);
       }
     } catch (error) {
-      console.error('Login error:', error);
       alert(`❌ Network error: ${error.message}`);
     } finally {
       setIsLoading(false);
