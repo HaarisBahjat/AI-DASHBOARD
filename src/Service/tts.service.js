@@ -61,22 +61,35 @@ const fs = require("fs");
 
 async function textToSpeech(text) {
   try {
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      throw new Error("Text is required for TTS");
+    }
+
+    console.log(`Requesting TTS for text: ${text.substring(0, 50)}...`);
+
     const response = await axios.post(
       "http://localhost:5000/tts",
-      { text },
+      { text: text.trim() },
       {
         responseType: "arraybuffer", // important: get raw binary data
         headers: { "Content-Type": "application/json" },
+        timeout: 30000 // 30 second timeout
       }
     );
 
-    // write a local file for debugging; callers only care about the buffer
-    fs.writeFileSync("output.mp3", Buffer.from(response.data));
-    console.log("Saved output.mp3");
+    if (!response.data || response.data.length === 0) {
+      throw new Error("TTS service returned empty audio data");
+    }
+
+    console.log(`TTS successful - received ${response.data.length} bytes of audio`);
     return Buffer.from(response.data);
   } catch (error) {
-    console.error("Error calling Piper API:", error.message);
-    throw error;
+    console.error("Error calling Piper TTS API:", error.message);
+    if (error.response?.status) {
+      console.error("HTTP Status:", error.response.status);
+      console.error("Response:", error.response.data?.toString() || "No response body");
+    }
+    throw new Error(`TTS failed: ${error.message}`);
   }
 }
 
