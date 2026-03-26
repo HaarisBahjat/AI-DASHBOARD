@@ -7,7 +7,24 @@ module.exports = (io) => {
                
             try {
                 console.log("Voice message received");
-                console.log("Audio size:", data.audioBuffer.length);
+                
+                // Validate audio data
+                if (!data.audioBuffer) {
+                    throw new Error("No audio buffer provided");
+                }
+                
+                if (!Array.isArray(data.audioBuffer)) {
+                    throw new Error("Audio buffer must be an array");
+                }
+                
+                console.log("Audio buffer length:", data.audioBuffer.length);
+                console.log("User ID:", data.userId);
+                console.log("Conversation ID:", data.conversationId);
+                
+                if (data.audioBuffer.length === 0) {
+                    throw new Error("Audio buffer is empty - no audio was recorded");
+                }
+                
                 const result = await processVoiceMessage({
                     audioBuffer: Buffer.from(data.audioBuffer),
                     conversationId: data.conversationId,
@@ -16,7 +33,8 @@ module.exports = (io) => {
                 socket.emit('voice-reply', result);
             }
             catch (error) {
-                console.error("Voice processing error:", error);
+                console.error("Voice processing error:", error.message);
+                console.error("Full error:", error);
                 socket.emit('voice-reply', {
                     message: "Something went wrong: " + error.message,
                     audioBuffer: null
