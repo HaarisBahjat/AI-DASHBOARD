@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import './LoginForm.css';
 
 const LoginForm = ({ onLogin }) => {
   const [email, setEmail] = useState('');
@@ -37,77 +38,45 @@ const LoginForm = ({ onLogin }) => {
   };
 
   return (
-    <div style={{
-      maxWidth: '400px',
-      margin: '50px auto',
-      padding: '20px',
-      background: 'rgba(255, 255, 255, 0.1)',
-      borderRadius: '10px',
-      backdropFilter: 'blur(10px)',
-      color: 'white'
-    }}>
-      <h2>🔐 Login Required</h2>
-      <p>You need to login to use the voice chat feature.</p>
+    <div className="login-shell">
+      <div className="login-card">
+        <div className="login-header">
+          <span className="login-chip">Voice Assistant</span>
+          <h2>Sign In</h2>
+          <p>Access your daily due conversations and continue where you left off.</p>
+        </div>
 
-      <form onSubmit={handleLogin}>
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Email:</label>
+        <form className="login-form" onSubmit={handleLogin}>
+          <label htmlFor="email">Email</label>
           <input
+            id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            style={{
-              width: '100%',
-              padding: '10px',
-              borderRadius: '5px',
-              border: 'none',
-              background: 'rgba(255, 255, 255, 0.2)',
-              color: 'white'
-            }}
+            placeholder="you@example.com"
           />
-        </div>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Password:</label>
+          <label htmlFor="password">Password</label>
           <input
+            id="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            style={{
-              width: '100%',
-              padding: '10px',
-              borderRadius: '5px',
-              border: 'none',
-              background: 'rgba(255, 255, 255, 0.2)',
-              color: 'white'
-            }}
+            placeholder="Enter your password"
           />
+
+          <button type="submit" disabled={isLoading}>
+            {isLoading ? 'Signing in...' : 'Login'}
+          </button>
+        </form>
+
+        <div className="login-creds">
+          <h4>Demo Credentials</h4>
+          <p>Email: test@example.com</p>
+          <p>Password: test123</p>
         </div>
-
-        <button
-          type="submit"
-          disabled={isLoading}
-          style={{
-            width: '100%',
-            padding: '12px',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: isLoading ? 'not-allowed' : 'pointer',
-            fontSize: '16px'
-          }}
-        >
-          {isLoading ? '🔄 Logging in...' : '🚀 Login'}
-        </button>
-      </form>
-
-      <div style={{ marginTop: '20px', padding: '15px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '5px' }}>
-        <h4>📋 Test Credentials:</h4>
-        <p><strong>Email:</strong> test@example.com</p>
-        <p><strong>Password:</strong> test123</p>
       </div>
     </div>
   );

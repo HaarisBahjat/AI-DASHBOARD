@@ -6,8 +6,11 @@ const auth = require('../midddlewares/auth');
 const upload = require('../midddlewares/upload');
 
 router.post('/', auth, conversationController.createConversation);
+router.get('/', auth, conversationController.listConversations);
 router.get('/:conversationId', auth, conversationController.getConversation);
 router.post('/:conversationId/message', auth, conversationController.addMessage);
+router.post('/:conversationId/messages', auth, conversationController.addMessage);
+router.delete('/:conversationId', auth, conversationController.deleteConversation);
 router.post('/:conversationId/complete', auth, conversationController.completeConversation);
 // Handle multer errors
 const handleMulterError = (err, req, res, next) => {

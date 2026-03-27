@@ -10,6 +10,15 @@ const sttService = require('../Service/stt.service');
 const llmService=require('../Service/llm.service');
 const { audio } = require('@elevenlabs/elevenlabs-js/api/resources/dubbing');
 
+const getLocalDateKey = (date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // Helper function to validate MongoDB ObjectId
 const isValidObjectId = (id) => {
     return mongoose.Types.ObjectId.isValid(id);
@@ -28,26 +37,109 @@ const validateConversationId = (conversationId, res) => {
     return true;
 };
 
+exports.listConversations = async (req, res) => {
+    try {
+        if (!req.user || !req.user._id) {
+            return res.status(401).json({ error: "User not authenticated" });
+        }
+
+        const sessions = await conversationSession
+            .find({ userId: req.user._id })
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const formatted = sessions.map((session) => ({
+            conversationId: session._id,
+            dueId: session.dueId,
+            status: session.status,
+            channel: session.channel,
+            sessionDate: session.sessionDate,
+            parentConversationId: session.parentConversationId || null,
+            createdAt: session.createdAt
+        }));
+
+        res.json(formatted);
+    } catch (err) {
+        console.error("Error listing conversations:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+};
+
 //CREATE A NEW CONVERSATION SESSION
 exports.createConversation=async(req,res)=>{
     try{
-        const {dueId, channel = 'TEXT'} = req.body;
+        const {dueId, dueTitle, dueDate, channel = 'TEXT'} = req.body;
         
         // Check if user is authenticated
         if(!req.user || !req.user._id){
             return res.status(401).json({error:"User not authenticated"});
         }
         
-        if(!dueId){
-            return res.status(400).json({error:"dueId is required"});
+        let targetDueId = dueId;
+
+        if (!targetDueId && dueTitle) {
+            const baseQuery = {
+                userId: req.user._id,
+                status: { $in: ['UNPAID', 'OVERDUE'] },
+                title: { $regex: `^${escapeRegex(String(dueTitle).trim())}$`, $options: 'i' }
+            };
+
+            let titleMatches = await Due.find(baseQuery).sort({ dueDate: 1 });
+
+            if (dueDate) {
+                const parsedDueDate = new Date(dueDate);
+                if (isNaN(parsedDueDate.getTime())) {
+                    return res.status(400).json({ error: 'Invalid dueDate format for disambiguation' });
+                }
+
+                const dayStart = new Date(parsedDueDate);
+                dayStart.setHours(0, 0, 0, 0);
+                const dayEnd = new Date(parsedDueDate);
+                dayEnd.setHours(23, 59, 59, 999);
+
+                titleMatches = titleMatches.filter((due) => {
+                    const d = new Date(due.dueDate);
+                    return d >= dayStart && d <= dayEnd;
+                });
+            }
+
+            if (titleMatches.length === 1) {
+                targetDueId = titleMatches[0]._id;
+            } else if (titleMatches.length > 1) {
+                return res.status(409).json({
+                    error: 'Multiple dues found with same title. Provide dueDate to continue.',
+                    requiresDueDate: true,
+                    matches: titleMatches.map((due) => ({
+                        dueId: due._id,
+                        title: due.title,
+                        amount: due.amount,
+                        dueDate: due.dueDate
+                    }))
+                });
+            } else {
+                return res.status(404).json({ error: 'No due found for the provided dueTitle/dueDate' });
+            }
+        }
+
+        if(!targetDueId){
+            const fallbackDue = await Due.findOne({
+                userId: req.user._id,
+                status: { $in: ['UNPAID', 'OVERDUE'] }
+            }).sort({ dueDate: 1 });
+
+            if (!fallbackDue) {
+                return res.status(400).json({error:"dueId is required (no unpaid dues available for fallback)"});
+            }
+
+            targetDueId = fallbackDue._id;
         }
 
         // Validate dueId format
-        if (!isValidObjectId(dueId)) {
+        if (!isValidObjectId(targetDueId)) {
             return res.status(400).json({error:"Invalid dueId format"});
         }
 
-        const due = await Due.findById(dueId);
+        const due = await Due.findById(targetDueId);
         if(!due){
             return res.status(404).json({error:"Due not found"});
         }
@@ -55,10 +147,47 @@ exports.createConversation=async(req,res)=>{
         if(due.userId.toString() !== req.user._id.toString()){
             return res.status(403).json({error:"Access denied"});
         }
+
+        const todayKey = getLocalDateKey();
+        const existingTodaySession = await conversationSession
+            .findOne({
+                userId: req.user._id,
+                dueId: targetDueId,
+                sessionDate: todayKey,
+                status: { $ne: 'COMPLETED' }
+            })
+            .sort({ updatedAt: -1 });
+
+        if (existingTodaySession) {
+            const existingSystemMsg = await conversationMessage
+                .findOne({ conversationId: existingTodaySession._id, roles: 'SYSTEM' })
+                .sort({ createdAt: 1 });
+
+            return res.status(200).json({
+                message: "Conversation session reused for today",
+                conversationId: existingTodaySession._id,
+                dueId: targetDueId,
+                sessionDate: todayKey,
+                reused: true,
+                systemText: existingSystemMsg?.message || `Continuing today's conversation for ${due.title}.`,
+                parentConversationId: existingTodaySession.parentConversationId || null,
+                audioFile: null
+            });
+        }
+
+        const previousSession = await conversationSession
+            .findOne({
+                userId: req.user._id,
+                dueId: targetDueId,
+                sessionDate: { $ne: todayKey }
+            })
+            .sort({ createdAt: -1 });
         
         const session = await conversationSession.create({
             userId: req.user._id,
-            dueId: dueId,
+            dueId: targetDueId,
+            sessionDate: todayKey,
+            parentConversationId: previousSession?._id || null,
             channel: channel,
             status: 'STARTED'
         });
@@ -90,6 +219,9 @@ exports.createConversation=async(req,res)=>{
         res.status(201).json({
       message: "Conversation session created",
       conversationId: session._id,
+            dueId: targetDueId,
+            sessionDate: todayKey,
+            parentConversationId: previousSession?._id || null,
       systemText,
       audioFile: audioFile ? audioFile : null
     });
@@ -138,7 +270,10 @@ exports.addMessage=async(req,res)=>{
             return;
         }
         
-        const {message}=req.body;
+        const message = req.body?.message || req.body?.text;
+        if (!message || typeof message !== 'string' || !message.trim()) {
+            return res.status(400).json({ error: "message is required" });
+        }
         const session=await conversationSession.findById(conversationId);
         if(!session){
             return res.status(404).json({error:"Conversation session not found"});
@@ -153,7 +288,7 @@ exports.addMessage=async(req,res)=>{
         const msg= await conversationMessage.create({
             conversationId:conversationId,
             roles:"USER",
-            message
+            message: message.trim()
         });
 
         session.status="IN_PROGRESS";
@@ -163,6 +298,33 @@ exports.addMessage=async(req,res)=>{
     }catch(err){
         console.error("Error adding message:",err);
         res.status(500).json({error:"Internal server error"});
+    }
+};
+
+exports.deleteConversation = async (req, res) => {
+    try {
+        const { conversationId } = req.params;
+
+        if (!validateConversationId(conversationId, res)) {
+            return;
+        }
+
+        const session = await conversationSession.findById(conversationId);
+        if (!session) {
+            return res.status(404).json({ error: 'Conversation session not found' });
+        }
+
+        if (session.userId.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        await conversationMessage.deleteMany({ conversationId });
+        await conversationSession.findByIdAndDelete(conversationId);
+
+        res.json({ message: 'Conversation deleted successfully', conversationId });
+    } catch (err) {
+        console.error('Error deleting conversation:', err);
+        res.status(500).json({ error: 'Internal server error' });
     }
 };
 

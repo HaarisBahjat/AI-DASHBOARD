@@ -1,52 +1,61 @@
 import React, { useState, useEffect } from 'react';
 import VoiceChat from './VoiceChat';
+import VoiceAssistant from './VoiceAssistant';
 import LoginForm from './LoginForm';
+import './App.css';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [activeView, setActiveView] = useState('voiceChat');
+  const [userId, setUserId] = useState(localStorage.getItem('userId') || '');
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     if (token) {
       setIsLoggedIn(true);
+      setUserId(localStorage.getItem('userId') || '');
     }
   }, []);
 
   const handleLogin = () => {
     setIsLoggedIn(true);
+    setUserId(localStorage.getItem('userId') || '');
   };
 
   const handleLogout = () => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('userId');
     setIsLoggedIn(false);
+    setUserId('');
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+    <div className="app-shell">
       {isLoggedIn ? (
-        <div>
-          <div style={{
-            position: 'absolute',
-            top: '20px',
-            right: '20px',
-            zIndex: 1000
-          }}>
+        <div className="app-authenticated-layout">
+          <div className="app-top-controls">
+            <button
+              onClick={() => setActiveView('voiceChat')}
+              className={`app-view-toggle ${activeView === 'voiceChat' ? 'active' : ''}`}
+            >
+              VoiceChat
+            </button>
+            <button
+              onClick={() => setActiveView('voiceAssistant')}
+              className={`app-view-toggle ${activeView === 'voiceAssistant' ? 'active' : ''}`}
+            >
+              VoiceAssistant
+            </button>
             <button
               onClick={handleLogout}
-              style={{
-                padding: '8px 16px',
-                background: 'rgba(255, 255, 255, 0.2)',
-                color: 'white',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
-                borderRadius: '5px',
-                cursor: 'pointer'
-              }}
+              className="app-logout-btn"
             >
-              🚪 Logout
+              Logout
             </button>
           </div>
-          <VoiceChat />
+          <div className="app-content-wrap">
+            {activeView === 'voiceChat' ? <VoiceChat /> : <VoiceAssistant userId={userId} />}
+          </div>
         </div>
       ) : (
         <LoginForm onLogin={handleLogin} />
