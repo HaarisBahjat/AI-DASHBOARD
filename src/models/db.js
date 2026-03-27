@@ -124,6 +124,16 @@ const conversationSessionSchema = new mongoose.Schema({
     ref: "Dues",
     required: true
   },
+  sessionDate: {
+    type: String,
+    required: false
+  },
+  parentConversationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "ConversationSession",
+    required: false,
+    default: null
+  },
   reminderLogId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "ReminderLog",

@@ -1,0 +1,243 @@
+.assistant-container {
+  min-height: calc(100vh - 88px);
+  background: linear-gradient(180deg, #0e1626 0%, #0a111d 100%);
+  border: 1px solid #1d2940;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+}
+
+.assistant-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #1b2941;
+  background: #0d1523;
+}
+
+.assistant-header h2 {
+  margin: 0;
+  color: #f1f5ff;
+  font-size: 32px;
+}
+
+.assistant-header p {
+  margin: 4px 0 0;
+  color: #7f96bf;
+  font-size: 18px;
+}
+
+.assistant-state-pill {
+  border: 1px solid #24314d;
+  background: #111f34;
+  color: #8db4ff;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 14px;
+}
+
+.assistant-state-pill.error {
+  background: #301722;
+  border-color: #5e2237;
+  color: #f0a1b4;
+}
+
+.assistant-metrics {
+  display: flex;
+  gap: 24px;
+  padding: 14px 24px;
+  border-bottom: 1px solid #1b2941;
+  background: #0d1522;
+  color: #778eb8;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.assistant-status-line {
+  margin: 8px 24px 0;
+  color: #9ab0d8;
+}
+
+.assistant-status-line.error {
+  color: #f7a7b8;
+}
+
+.assistant-toolbar {
+  padding: 16px 24px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+}
+
+.assistant-primary-btn,
+.assistant-danger-btn,
+.assistant-start-btn {
+  border: 1px solid #2b3f63;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.assistant-primary-btn {
+  padding: 12px 18px;
+  background: linear-gradient(180deg, #2f66ff 0%, #2555dd 100%);
+  border-color: #3b6fff;
+  color: #eef3ff;
+}
+
+.assistant-danger-btn {
+  padding: 12px 16px;
+  background: #2a1821;
+  border-color: #5a2a3d;
+  color: #f1afbe;
+}
+
+.assistant-select {
+  border: 1px solid #24314d;
+  border-radius: 12px;
+  padding: 12px;
+  background: #141e31;
+  color: #dbe5fb;
+}
+
+.assistant-history-panel {
+  flex: 1;
+  margin: 0 24px;
+  border: 1px solid #1f2d49;
+  background: #0d1523;
+  border-radius: 14px;
+  padding: 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.assistant-empty {
+  margin: auto;
+  color: #5f7299;
+  font-size: 28px;
+  text-align: center;
+}
+
+.assistant-message {
+  border: 1px solid #243454;
+  border-radius: 10px;
+  padding: 10px;
+  color: #d8e1f6;
+  background: #141f32;
+}
+
+.assistant-message.user {
+  background: linear-gradient(180deg, #356dff 0%, #285de5 100%);
+  border-color: #3d6ddb;
+  color: #f4f7ff;
+}
+
+.assistant-message-top {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.assistant-message-top small {
+  opacity: 0.85;
+}
+
+.assistant-transcript {
+  display: block;
+  margin-top: 6px;
+  opacity: 0.85;
+}
+
+.assistant-footer-meta {
+  display: flex;
+  gap: 24px;
+  padding: 14px 24px;
+  border-top: 1px solid #1b2941;
+  color: #8ea4cc;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.assistant-footer-meta em {
+  font-style: italic;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #93abd6;
+  margin-left: 8px;
+}
+
+.assistant-controls-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 24px 24px;
+  border-top: 1px solid #1b2941;
+  background: #0d1523;
+}
+
+.assistant-start-btn {
+  min-width: 190px;
+  padding: 14px 18px;
+  background: linear-gradient(180deg, #2f66ff 0%, #2555dd 100%);
+  border-color: #3b6fff;
+  color: #f3f7ff;
+  font-size: 22px;
+}
+
+.assistant-start-btn.recording {
+  background: linear-gradient(180deg, #f05d74 0%, #db3d58 100%);
+  border-color: #e76076;
+}
+
+.assistant-start-btn:disabled,
+.assistant-primary-btn:disabled,
+.assistant-danger-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.assistant-reply-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.assistant-reply-block span {
+  color: #7b92be;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.assistant-reply-block p {
+  margin: 0;
+  color: #d6def2;
+  font-size: 28px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+  .assistant-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .assistant-controls-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .assistant-start-btn {
+    width: 100%;
+  }
+}

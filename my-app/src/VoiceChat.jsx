@@ -2,6 +2,64 @@ import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 import './VoiceChat.css';
 
+const getAuthHeaders = (token) => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${token}`,
+});
+
+const normalizeMessages = (items = []) => {
+  return items.map((msg) => ({
+    id: msg._id || Date.now() + Math.random(),
+    role: (msg.roles || 'SYSTEM').toUpperCase(),
+    message: msg.message || '',
+    timestamp: msg.createdAt ? new Date(msg.createdAt) : new Date(),
+  }));
+};
+
+const getDateKey = (dateValue) => {
+  const date = new Date(dateValue);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getDateLabel = (dateKey) => {
+  const now = new Date();
+  const todayKey = getDateKey(now);
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const yesterdayKey = getDateKey(yesterday);
+
+  if (dateKey === todayKey) return 'Today';
+  if (dateKey === yesterdayKey) return 'Yesterday';
+
+  const date = new Date(`${dateKey}T00:00:00`);
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const groupConversationsBySessionDate = (items = []) => {
+  const grouped = items.reduce((acc, conversation) => {
+    const key = conversation.sessionDate || getDateKey(conversation.createdAt || new Date());
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(conversation);
+    return acc;
+  }, {});
+
+  return Object.keys(grouped)
+    .sort((a, b) => (a < b ? 1 : -1))
+    .map((key) => ({
+      key,
+      label: getDateLabel(key),
+      conversations: grouped[key],
+    }));
+};
+
+const upsertConversation = (list, nextConversation) => {
+  const withoutCurrent = list.filter((item) => item.id !== nextConversation.id);
+  return [nextConversation, ...withoutCurrent];
+};
+
 const VoiceChat = () => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -10,11 +68,29 @@ const VoiceChat = () => {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [voiceSetupHint, setVoiceSetupHint] = useState('');
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const streamRef = useRef(null);
   const audioRef = useRef(new Audio());
+
+  const loadConversation = async (conversationId, tokenOverride) => {
+    const token = tokenOverride || localStorage.getItem('authToken');
+    if (!token || !conversationId) return;
+
+    const response = await fetch(`http://localhost:3004/api/conversations/${conversationId}`, {
+      headers: getAuthHeaders(token)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to load conversation (${response.status})`);
+    }
+
+    const data = await response.json();
+    setSelectedConversation(conversationId);
+    setMessages(normalizeMessages(data.messages || []));
+  };
 
   useEffect(() => {
     const authToken = localStorage.getItem('authToken');
@@ -72,6 +148,68 @@ const VoiceChat = () => {
     });
 
     setSocket(newSocket);
+
+    const fetchConversations = async () => {
+      try {
+        const response = await fetch('http://localhost:3004/api/conversations', {
+          headers: getAuthHeaders(authToken)
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch conversations (${response.status})`);
+        }
+
+        const list = await response.json();
+        const normalizedList = (Array.isArray(list) ? list : []).map((conv) => ({
+          id: conv.conversationId || conv._id,
+          dueId: conv.dueId,
+          dueLabel: conv.dueLabel || conv.dueId,
+          sessionDate: conv.sessionDate,
+          createdAt: conv.createdAt ? new Date(conv.createdAt) : new Date(),
+          systemText: conv.systemText || '',
+          lastActivityAt: conv.createdAt ? new Date(conv.createdAt) : new Date(),
+        }));
+
+        const withActivity = await Promise.all(normalizedList.map(async (conv) => {
+          try {
+            const convResp = await fetch(`http://localhost:3004/api/conversations/${conv.id}`, {
+              headers: getAuthHeaders(authToken)
+            });
+
+            if (!convResp.ok) {
+              return conv;
+            }
+
+            const convData = await convResp.json();
+            const messages = Array.isArray(convData?.messages) ? convData.messages : [];
+            const latestMessageTime = messages
+              .map((m) => new Date(m.createdAt).getTime())
+              .filter((t) => !Number.isNaN(t))
+              .sort((a, b) => b - a)[0];
+
+            return {
+              ...conv,
+              lastActivityAt: latestMessageTime ? new Date(latestMessageTime) : conv.lastActivityAt,
+              systemText: conv.systemText || messages.find((m) => m.roles === 'SYSTEM')?.message || ''
+            };
+          } catch {
+            return conv;
+          }
+        }));
+
+        withActivity.sort((a, b) => new Date(b.lastActivityAt) - new Date(a.lastActivityAt));
+
+        setConversations(withActivity);
+
+        if (withActivity.length > 0) {
+          await loadConversation(withActivity[0].id, authToken);
+        }
+      } catch (error) {
+        console.error('Failed to auto-load conversations:', error.message);
+      }
+    };
+
+    fetchConversations();
 
     return () => newSocket.close();
   }, []);
@@ -160,10 +298,54 @@ const VoiceChat = () => {
     }
   };
 
-  const createConversation = async () => {
-    const dueId = prompt('Enter Due ID:');
-    if (!dueId) return;
+  const setupSpeechRecognition = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return null;
 
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    return recognition;
+  };
+
+  const captureSingleUtterance = (hintText) => {
+    return new Promise((resolve, reject) => {
+      const recognition = setupSpeechRecognition();
+      if (!recognition) {
+        reject(new Error('Speech recognition is not supported in this browser.'));
+        return;
+      }
+
+      let finalText = '';
+      setVoiceSetupHint(hintText || 'Listening...');
+
+      recognition.onresult = (event) => {
+        finalText = Array.from(event.results)
+          .map(result => result[0].transcript)
+          .join(' ')
+          .trim();
+      };
+
+      recognition.onerror = (event) => {
+        setVoiceSetupHint('');
+        reject(new Error(`Speech recognition error: ${event.error}`));
+      };
+
+      recognition.onend = () => {
+        setVoiceSetupHint('');
+        if (!finalText) {
+          reject(new Error('No speech captured. Please try again.'));
+          return;
+        }
+        resolve(finalText);
+      };
+
+      recognition.start();
+    });
+  };
+
+  const createConversation = async () => {
     const authToken = localStorage.getItem('authToken');
     if (!authToken) {
       alert('?? You are not logged in. Please log in first.');
@@ -171,14 +353,31 @@ const VoiceChat = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:3004/api/conversations', {
+      const dueTitle = await captureSingleUtterance('Say the due title now (example: electricity bill).');
+
+      let response = await fetch('http://localhost:3004/api/conversations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`
         },
-        body: JSON.stringify({ dueId: dueId, channel: 'VOICE' })
+        body: JSON.stringify({ dueTitle, channel: 'VOICE' })
       });
+
+      if (response.status === 409) {
+        const duplicateData = await response.json();
+        if (duplicateData?.requiresDueDate) {
+          const spokenDueDate = await captureSingleUtterance('Multiple dues found. Say the due date, for example March 30 2026.');
+          response = await fetch('http://localhost:3004/api/conversations', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ dueTitle, dueDate: spokenDueDate, channel: 'VOICE' })
+          });
+        }
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -188,14 +387,16 @@ const VoiceChat = () => {
 
       const data = await response.json();
 
-      setConversations(prev => [...prev, {
+      setConversations(prev => upsertConversation(prev, {
         id: data.conversationId,
-        dueId: dueId,
+        dueLabel: dueTitle,
         systemText: data.systemText,
-        createdAt: new Date()
-      }]);
+        sessionDate: data?.sessionDate || new Date().toISOString().split('T')[0],
+        createdAt: data?.createdAt ? new Date(data.createdAt) : new Date(),
+        lastActivityAt: new Date()
+      }));
 
-      selectConversation(data.conversationId, data.systemText);
+      await selectConversation(data.conversationId, data.systemText);
 
       if (data.audioFile) {
         audioRef.current.src = `http://localhost:3004${data.audioFile}`;
@@ -206,9 +407,14 @@ const VoiceChat = () => {
     }
   };
 
-  const selectConversation = (conversationId, systemText) => {
-    setSelectedConversation(conversationId);
-    setMessages([{ id: Date.now(), role: 'SYSTEM', message: systemText, timestamp: new Date() }]);
+  const selectConversation = async (conversationId, systemText) => {
+    try {
+      await loadConversation(conversationId);
+    } catch (error) {
+      console.error('Error loading conversation details:', error.message);
+      setSelectedConversation(conversationId);
+      setMessages([{ id: Date.now(), role: 'SYSTEM', message: systemText || 'Conversation loaded', timestamp: new Date() }]);
+    }
   };
 
   const completeConversation = async (action) => {
@@ -237,6 +443,46 @@ const VoiceChat = () => {
     }
   };
 
+  const deleteConversation = async () => {
+    if (!selectedConversation) return;
+
+    const shouldDelete = window.confirm('Delete this conversation?');
+    if (!shouldDelete) return;
+
+    try {
+      const response = await fetch(`http://localhost:3004/api/conversations/${selectedConversation}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        }
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        alert(`? Error: ${data.error || 'Failed to delete conversation'}`);
+        return;
+      }
+
+      const userId = localStorage.getItem('userId');
+      if (userId) {
+        localStorage.removeItem(`voiceAssistantHistory_${userId}_${selectedConversation}`);
+      }
+
+      const remaining = conversations.filter((conv) => conv.id !== selectedConversation);
+      setConversations(remaining);
+
+      if (remaining.length > 0) {
+        await selectConversation(remaining[0].id, remaining[0].systemText);
+      } else {
+        setSelectedConversation(null);
+        setMessages([]);
+      }
+    } catch (error) {
+      alert(`? Error: ${error.message}`);
+    }
+  };
+
   return (
     <div className="voice-chat-container">
       <div className="header">
@@ -251,11 +497,17 @@ const VoiceChat = () => {
           <button className="new-conversation-btn" onClick={createConversation} disabled={!isConnected}>
             + New Conversation
           </button>
+          {voiceSetupHint && <div style={{ fontSize: '12px', margin: '8px 0', color: '#555' }}>{voiceSetupHint}</div>}
           <div className="conversations-list">
-            {conversations.map(conv => (
-              <div key={conv.id} className={`conversation-item ${selectedConversation === conv.id ? 'active' : ''}`} onClick={() => selectConversation(conv.id, conv.systemText)}>
-                <div className="conv-due-id">Due: {conv.dueId.slice(0, 8)}...</div>
-                <div className="conv-time">{new Date(conv.createdAt).toLocaleTimeString()}</div>
+            {groupConversationsBySessionDate(conversations).map((section) => (
+              <div key={section.key}>
+                <div style={{ fontSize: '12px', fontWeight: 700, opacity: 0.8, margin: '10px 0 6px 0' }}>{section.label}</div>
+                {section.conversations.map((conv) => (
+                  <div key={conv.id} className={`conversation-item ${selectedConversation === conv.id ? 'active' : ''}`} onClick={() => selectConversation(conv.id, conv.systemText)}>
+                    <div className="conv-due-id">Due: {(conv.dueLabel || conv.dueId || 'N/A').toString()}</div>
+                    <div className="conv-time">{new Date(conv.createdAt).toLocaleTimeString()}</div>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
@@ -296,6 +548,7 @@ const VoiceChat = () => {
                   <button className="action-btn paid" onClick={() => completeConversation('PAID')} disabled={!selectedConversation}>Mark as Paid</button>
                   <button className="action-btn snooze" onClick={() => completeConversation('SNOOZE')} disabled={!selectedConversation}>Snooze</button>
                   <button className="action-btn dismiss" onClick={() => completeConversation('DISMISSED')} disabled={!selectedConversation}>Dismiss</button>
+                  <button className="action-btn dismiss" onClick={deleteConversation} disabled={!selectedConversation}>Delete Chat</button>
                 </div>
               </div>
             </>
