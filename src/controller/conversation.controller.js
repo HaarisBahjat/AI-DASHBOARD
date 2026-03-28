@@ -43,14 +43,20 @@ exports.listConversations = async (req, res) => {
             return res.status(401).json({ error: "User not authenticated" });
         }
 
+        // Populate due details so frontend can build bill-based chat threads.
         const sessions = await conversationSession
             .find({ userId: req.user._id })
+            .populate('dueId', 'title dueDate amount')
             .sort({ createdAt: -1 })
             .lean();
 
         const formatted = sessions.map((session) => ({
             conversationId: session._id,
-            dueId: session.dueId,
+            // Keep dueId as a stable thread key; title can be duplicated across bills.
+            dueId: session?.dueId?._id || session.dueId,
+            dueTitle: session?.dueId?.title || null,
+            dueDate: session?.dueId?.dueDate || null,
+            dueAmount: session?.dueId?.amount || null,
             status: session.status,
             channel: session.channel,
             sessionDate: session.sessionDate,
@@ -148,6 +154,7 @@ exports.createConversation=async(req,res)=>{
             return res.status(403).json({error:"Access denied"});
         }
 
+        // Reuse active same-day session for the same bill; create a fresh one after day rollover.
         const todayKey = getLocalDateKey();
         const existingTodaySession = await conversationSession
             .findOne({
@@ -167,6 +174,8 @@ exports.createConversation=async(req,res)=>{
                 message: "Conversation session reused for today",
                 conversationId: existingTodaySession._id,
                 dueId: targetDueId,
+                dueTitle: due.title,
+                dueDate: due.dueDate,
                 sessionDate: todayKey,
                 reused: true,
                 systemText: existingSystemMsg?.message || `Continuing today's conversation for ${due.title}.`,
@@ -175,6 +184,7 @@ exports.createConversation=async(req,res)=>{
             });
         }
 
+        // Keep a reference chain to yesterday/older session for same bill context continuity.
         const previousSession = await conversationSession
             .findOne({
                 userId: req.user._id,
@@ -220,6 +230,8 @@ exports.createConversation=async(req,res)=>{
       message: "Conversation session created",
       conversationId: session._id,
             dueId: targetDueId,
+                        dueTitle: due.title,
+                        dueDate: due.dueDate,
             sessionDate: todayKey,
             parentConversationId: previousSession?._id || null,
       systemText,

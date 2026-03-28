@@ -1,6 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import './VoiceChat.css';
+
+/*
+  Architecture Notes (VoiceChat)
+  - Thread identity: A bill thread is keyed by dueId (fallback: session id). This prevents
+    accidental merging when different bills share the same title.
+  - Data model in UI: conversations[] contains session-level entries; billThreads[] is a
+    derived view that groups sessions by bill and combines their messages.
+  - Timeline behavior: Inside each bill thread, messages are sorted chronologically and
+    rendered with day separators (Today/Yesterday/date) for WhatsApp-like readability.
+  - Active routing: Voice recording and live socket replies are always bound to the
+    latest active session id inside the selected bill thread.
+*/
 
 const getAuthHeaders = (token) => ({
   'Content-Type': 'application/json',
@@ -38,26 +50,84 @@ const getDateLabel = (dateKey) => {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-const groupConversationsBySessionDate = (items = []) => {
-  const grouped = items.reduce((acc, conversation) => {
-    const key = conversation.sessionDate || getDateKey(conversation.createdAt || new Date());
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(conversation);
-    return acc;
-  }, {});
-
-  return Object.keys(grouped)
-    .sort((a, b) => (a < b ? 1 : -1))
-    .map((key) => ({
-      key,
-      label: getDateLabel(key),
-      conversations: grouped[key],
-    }));
+const getThreadKey = (conversation) => {
+  // Do not merge different bills with the same title; dueId is the primary thread identity.
+  if (conversation?.dueId) return `due:${conversation.dueId}`;
+  return `session:${conversation.id}`;
 };
 
-const upsertConversation = (list, nextConversation) => {
-  const withoutCurrent = list.filter((item) => item.id !== nextConversation.id);
-  return [nextConversation, ...withoutCurrent];
+const getBillLabel = (conversation) => {
+  const title = conversation?.dueTitle || 'Untitled Bill';
+  const dueDate = conversation?.dueDate ? new Date(conversation.dueDate).toLocaleDateString() : null;
+  return dueDate ? `${title} (${dueDate})` : title;
+};
+
+const buildBillThreads = (conversationList = []) => {
+  const threadMap = new Map();
+
+  for (const conversation of conversationList) {
+    const threadKey = getThreadKey(conversation);
+    if (!threadMap.has(threadKey)) {
+      threadMap.set(threadKey, {
+        threadKey,
+        dueId: conversation?.dueId || null,
+        dueTitle: conversation?.dueTitle || 'Untitled Bill',
+        dueDate: conversation?.dueDate || null,
+        billLabel: getBillLabel(conversation),
+        sessions: [],
+        messages: [],
+        activeConversationId: null,
+        lastActivityAt: new Date(conversation.createdAt || new Date()),
+        preview: 'No messages yet',
+      });
+    }
+
+    const thread = threadMap.get(threadKey);
+    const sessionMessages = Array.isArray(conversation.messages) ? conversation.messages : [];
+    const conversationLastActivity = sessionMessages.length > 0
+      ? new Date(sessionMessages[sessionMessages.length - 1].timestamp)
+      : new Date(conversation.lastActivityAt || conversation.createdAt || new Date());
+
+    thread.sessions.push({
+      id: conversation.id,
+      sessionDate: conversation.sessionDate,
+      createdAt: conversation.createdAt,
+      status: conversation.status,
+      lastActivityAt: conversationLastActivity,
+    });
+
+    // Collect messages from all sessions under the same bill thread.
+    thread.messages.push(...sessionMessages.map((msg) => ({
+      ...msg,
+      conversationId: conversation.id,
+      timestamp: new Date(msg.timestamp),
+    })));
+  }
+
+  const threads = Array.from(threadMap.values()).map((thread) => {
+    // Within a bill thread, messages are stacked chronologically (WhatsApp-like timeline).
+    thread.messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    thread.sessions.sort((a, b) => new Date(b.lastActivityAt) - new Date(a.lastActivityAt));
+    thread.activeConversationId = thread.sessions[0]?.id || null;
+    thread.lastActivityAt = thread.messages.length > 0
+      ? new Date(thread.messages[thread.messages.length - 1].timestamp)
+      : new Date(thread.sessions[0]?.lastActivityAt || new Date());
+    thread.preview = thread.messages.length > 0
+      ? thread.messages[thread.messages.length - 1].message
+      : 'No messages yet';
+
+    return thread;
+  });
+
+  // Sidebar order: bill name first, then latest activity for same-name ties.
+  threads.sort((a, b) => {
+    const nameCmp = a.dueTitle.localeCompare(b.dueTitle);
+    if (nameCmp !== 0) return nameCmp;
+    return new Date(b.lastActivityAt) - new Date(a.lastActivityAt);
+  });
+
+  return threads;
 };
 
 const VoiceChat = () => {
@@ -65,7 +135,8 @@ const VoiceChat = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [conversations, setConversations] = useState([]);
-  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [selectedThreadKey, setSelectedThreadKey] = useState(null);
+  const [activeConversationId, setActiveConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [voiceSetupHint, setVoiceSetupHint] = useState('');
@@ -88,8 +159,76 @@ const VoiceChat = () => {
     }
 
     const data = await response.json();
-    setSelectedConversation(conversationId);
-    setMessages(normalizeMessages(data.messages || []));
+    return {
+      session: data.session,
+      messages: normalizeMessages(data.messages || []),
+    };
+  };
+
+  const billThreads = useMemo(() => buildBillThreads(conversations), [conversations]);
+  const selectedThread = useMemo(
+    () => billThreads.find((thread) => thread.threadKey === selectedThreadKey) || null,
+    [billThreads, selectedThreadKey]
+  );
+
+  useEffect(() => {
+    if (billThreads.length === 0) {
+      setActiveConversationId(null);
+      setMessages([]);
+      if (selectedThreadKey !== null) setSelectedThreadKey(null);
+      return;
+    }
+
+    if (!selectedThread) {
+      setSelectedThreadKey(billThreads[0].threadKey);
+      return;
+    }
+
+    setActiveConversationId(selectedThread.activeConversationId);
+    setMessages(selectedThread.messages);
+  }, [billThreads, selectedThread, selectedThreadKey]);
+
+  const refreshConversations = async (authToken) => {
+    const response = await fetch('http://localhost:3004/api/conversations', {
+      headers: getAuthHeaders(authToken)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch conversations (${response.status})`);
+    }
+
+    const list = await response.json();
+    const normalizedList = (Array.isArray(list) ? list : []).map((conv) => ({
+      id: conv.conversationId || conv._id,
+      dueId: conv.dueId,
+      dueTitle: conv.dueTitle || 'Untitled Bill',
+      dueDate: conv.dueDate || null,
+      sessionDate: conv.sessionDate,
+      status: conv.status,
+      createdAt: conv.createdAt ? new Date(conv.createdAt) : new Date(),
+      lastActivityAt: conv.createdAt ? new Date(conv.createdAt) : new Date(),
+      messages: [],
+    }));
+
+    // Hydrate each session with its message list to build accurate bill threads and previews.
+    const withDetails = await Promise.all(normalizedList.map(async (conv) => {
+      try {
+        const convData = await loadConversation(conv.id, authToken);
+        const msgList = convData?.messages || [];
+        const latestMessageTime = msgList.length > 0
+          ? new Date(msgList[msgList.length - 1].timestamp)
+          : conv.lastActivityAt;
+        return {
+          ...conv,
+          messages: msgList,
+          lastActivityAt: latestMessageTime,
+        };
+      } catch {
+        return conv;
+      }
+    }));
+
+    setConversations(withDetails);
   };
 
   useEffect(() => {
@@ -119,12 +258,24 @@ const VoiceChat = () => {
       console.log('?? Received reply:', result);
       setIsLoading(false);
 
-      setMessages(prev => [...prev, {
-        id: Date.now(),
+      const assistantMessage = {
+        id: Date.now() + Math.random(),
         role: 'ASSISTANT',
         message: result.message,
-        timestamp: new Date()
-      }]);
+        timestamp: new Date(),
+      };
+
+      if (activeConversationId) {
+        // Keep real-time assistant replies attached to the currently active session/thread.
+        setConversations((prev) => prev.map((conv) => {
+          if (conv.id !== activeConversationId) return conv;
+          return {
+            ...conv,
+            messages: [...conv.messages, assistantMessage],
+            lastActivityAt: new Date(),
+          };
+        }));
+      }
 
       if (result.audioFile || result.audioBuffer) {
         playAudioResponse(result);
@@ -151,59 +302,7 @@ const VoiceChat = () => {
 
     const fetchConversations = async () => {
       try {
-        const response = await fetch('http://localhost:3004/api/conversations', {
-          headers: getAuthHeaders(authToken)
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch conversations (${response.status})`);
-        }
-
-        const list = await response.json();
-        const normalizedList = (Array.isArray(list) ? list : []).map((conv) => ({
-          id: conv.conversationId || conv._id,
-          dueId: conv.dueId,
-          dueLabel: conv.dueLabel || conv.dueId,
-          sessionDate: conv.sessionDate,
-          createdAt: conv.createdAt ? new Date(conv.createdAt) : new Date(),
-          systemText: conv.systemText || '',
-          lastActivityAt: conv.createdAt ? new Date(conv.createdAt) : new Date(),
-        }));
-
-        const withActivity = await Promise.all(normalizedList.map(async (conv) => {
-          try {
-            const convResp = await fetch(`http://localhost:3004/api/conversations/${conv.id}`, {
-              headers: getAuthHeaders(authToken)
-            });
-
-            if (!convResp.ok) {
-              return conv;
-            }
-
-            const convData = await convResp.json();
-            const messages = Array.isArray(convData?.messages) ? convData.messages : [];
-            const latestMessageTime = messages
-              .map((m) => new Date(m.createdAt).getTime())
-              .filter((t) => !Number.isNaN(t))
-              .sort((a, b) => b - a)[0];
-
-            return {
-              ...conv,
-              lastActivityAt: latestMessageTime ? new Date(latestMessageTime) : conv.lastActivityAt,
-              systemText: conv.systemText || messages.find((m) => m.roles === 'SYSTEM')?.message || ''
-            };
-          } catch {
-            return conv;
-          }
-        }));
-
-        withActivity.sort((a, b) => new Date(b.lastActivityAt) - new Date(a.lastActivityAt));
-
-        setConversations(withActivity);
-
-        if (withActivity.length > 0) {
-          await loadConversation(withActivity[0].id, authToken);
-        }
+        await refreshConversations(authToken);
       } catch (error) {
         console.error('Failed to auto-load conversations:', error.message);
       }
@@ -212,7 +311,7 @@ const VoiceChat = () => {
     fetchConversations();
 
     return () => newSocket.close();
-  }, []);
+  }, [activeConversationId]);
 
   const startRecording = async () => {
     try {
@@ -251,8 +350,8 @@ const VoiceChat = () => {
   };
 
   const sendAudioToServer = () => {
-    if (!socket || !selectedConversation) {
-      alert('Please select a conversation first');
+    if (!socket || !activeConversationId) {
+      alert('Please select a bill chat first');
       return;
     }
 
@@ -262,17 +361,27 @@ const VoiceChat = () => {
     reader.onload = (event) => {
       const audioBuffer = new Uint8Array(event.target.result);
 
-      setMessages(prev => [...prev, {
-        id: Date.now(),
+      const userMessage = {
+        id: Date.now() + Math.random(),
         role: 'USER',
         message: '[Audio message sent]',
         timestamp: new Date()
-      }]);
+      };
+
+      // Optimistic update for immediate UX while backend processes audio and emits final reply.
+      setConversations((prev) => prev.map((conv) => {
+        if (conv.id !== activeConversationId) return conv;
+        return {
+          ...conv,
+          messages: [...conv.messages, userMessage],
+          lastActivityAt: new Date(),
+        };
+      }));
 
       setIsLoading(true);
 
       socket.emit('voice-message', {
-        conversationId: selectedConversation,
+        conversationId: activeConversationId,
         userId: localStorage.getItem('userId'),
         audioBuffer: Array.from(audioBuffer)
       });
@@ -386,17 +495,12 @@ const VoiceChat = () => {
       }
 
       const data = await response.json();
-
-      setConversations(prev => upsertConversation(prev, {
-        id: data.conversationId,
-        dueLabel: dueTitle,
-        systemText: data.systemText,
-        sessionDate: data?.sessionDate || new Date().toISOString().split('T')[0],
-        createdAt: data?.createdAt ? new Date(data.createdAt) : new Date(),
-        lastActivityAt: new Date()
-      }));
-
-      await selectConversation(data.conversationId, data.systemText);
+      await refreshConversations(authToken);
+      if (data?.dueId) {
+        setSelectedThreadKey(`due:${data.dueId}`);
+      } else {
+        setSelectedThreadKey(`session:${data.conversationId}`);
+      }
 
       if (data.audioFile) {
         audioRef.current.src = `http://localhost:3004${data.audioFile}`;
@@ -407,21 +511,15 @@ const VoiceChat = () => {
     }
   };
 
-  const selectConversation = async (conversationId, systemText) => {
-    try {
-      await loadConversation(conversationId);
-    } catch (error) {
-      console.error('Error loading conversation details:', error.message);
-      setSelectedConversation(conversationId);
-      setMessages([{ id: Date.now(), role: 'SYSTEM', message: systemText || 'Conversation loaded', timestamp: new Date() }]);
-    }
+  const selectThread = (threadKey) => {
+    setSelectedThreadKey(threadKey);
   };
 
   const completeConversation = async (action) => {
-    if (!selectedConversation) return;
+    if (!activeConversationId) return;
 
     try {
-      const response = await fetch(`http://localhost:3004/api/conversations/${selectedConversation}/complete`, {
+      const response = await fetch(`http://localhost:3004/api/conversations/${activeConversationId}/complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -432,8 +530,10 @@ const VoiceChat = () => {
 
       if (response.ok) {
         alert(`? Conversation completed with action: ${action}`);
-        setSelectedConversation(null);
-        setMessages([]);
+        const authToken = localStorage.getItem('authToken');
+        if (authToken) {
+          await refreshConversations(authToken);
+        }
       } else {
         const data = await response.json();
         alert(`? Error: ${data.error}`);
@@ -444,13 +544,13 @@ const VoiceChat = () => {
   };
 
   const deleteConversation = async () => {
-    if (!selectedConversation) return;
+    if (!activeConversationId) return;
 
     const shouldDelete = window.confirm('Delete this conversation?');
     if (!shouldDelete) return;
 
     try {
-      const response = await fetch(`http://localhost:3004/api/conversations/${selectedConversation}`, {
+      const response = await fetch(`http://localhost:3004/api/conversations/${activeConversationId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -466,17 +566,12 @@ const VoiceChat = () => {
 
       const userId = localStorage.getItem('userId');
       if (userId) {
-        localStorage.removeItem(`voiceAssistantHistory_${userId}_${selectedConversation}`);
+        localStorage.removeItem(`voiceAssistantHistory_${userId}_${activeConversationId}`);
       }
 
-      const remaining = conversations.filter((conv) => conv.id !== selectedConversation);
-      setConversations(remaining);
-
-      if (remaining.length > 0) {
-        await selectConversation(remaining[0].id, remaining[0].systemText);
-      } else {
-        setSelectedConversation(null);
-        setMessages([]);
+      const authToken = localStorage.getItem('authToken');
+      if (authToken) {
+        await refreshConversations(authToken);
       }
     } catch (error) {
       alert(`? Error: ${error.message}`);
@@ -499,31 +594,42 @@ const VoiceChat = () => {
           </button>
           {voiceSetupHint && <div style={{ fontSize: '12px', margin: '8px 0', color: '#555' }}>{voiceSetupHint}</div>}
           <div className="conversations-list">
-            {groupConversationsBySessionDate(conversations).map((section) => (
-              <div key={section.key}>
-                <div style={{ fontSize: '12px', fontWeight: 700, opacity: 0.8, margin: '10px 0 6px 0' }}>{section.label}</div>
-                {section.conversations.map((conv) => (
-                  <div key={conv.id} className={`conversation-item ${selectedConversation === conv.id ? 'active' : ''}`} onClick={() => selectConversation(conv.id, conv.systemText)}>
-                    <div className="conv-due-id">Due: {(conv.dueLabel || conv.dueId || 'N/A').toString()}</div>
-                    <div className="conv-time">{new Date(conv.createdAt).toLocaleTimeString()}</div>
-                  </div>
-                ))}
+            {billThreads.map((thread) => (
+              <div
+                key={thread.threadKey}
+                className={`conversation-item ${selectedThreadKey === thread.threadKey ? 'active' : ''}`}
+                onClick={() => selectThread(thread.threadKey)}
+              >
+                <div className="conversation-item-title">{thread.billLabel}</div>
+                <div className="conversation-item-sub">{thread.preview}</div>
+                <div className="conv-time">{new Date(thread.lastActivityAt).toLocaleString()}</div>
               </div>
             ))}
           </div>
         </div>
 
         <div className="chat-area">
-          {selectedConversation ? (
+          {selectedThread ? (
             <>
               <div className="messages">
-                {messages.map(msg => (
-                  <div key={msg.id} className={`message ${msg.role.toLowerCase()}`}>
-                    <div className="message-role">{msg.role}</div>
-                    <div className="message-text">{msg.message}</div>
-                    <div className="message-time">{msg.timestamp.toLocaleTimeString()}</div>
-                  </div>
-                ))}
+                {messages.map((msg, index) => {
+                  const previous = messages[index - 1];
+                  // Add date headers when the message day changes in the timeline.
+                  const showDateDivider = !previous || getDateKey(previous.timestamp) !== getDateKey(msg.timestamp);
+
+                  return (
+                    <React.Fragment key={msg.id}>
+                      {showDateDivider && (
+                        <div className="message-date-divider">{getDateLabel(getDateKey(msg.timestamp))}</div>
+                      )}
+                      <div className={`message ${msg.role.toLowerCase()}`}>
+                        <div className="message-role">{msg.role}</div>
+                        <div className="message-text">{msg.message}</div>
+                        <div className="message-time">{new Date(msg.timestamp).toLocaleTimeString()}</div>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
                 {isLoading && (
                   <div className="message loading">
                     <div className="spinner"></div>
@@ -539,16 +645,16 @@ const VoiceChat = () => {
                   onMouseUp={stopRecording}
                   onTouchStart={startRecording}
                   onTouchEnd={stopRecording}
-                  disabled={!isConnected || isLoading}
+                  disabled={!isConnected || isLoading || !activeConversationId}
                 >
                   {isRecording ? '??? Recording...' : '??? Hold to Record'}
                 </button>
 
                 <div className="action-buttons">
-                  <button className="action-btn paid" onClick={() => completeConversation('PAID')} disabled={!selectedConversation}>Mark as Paid</button>
-                  <button className="action-btn snooze" onClick={() => completeConversation('SNOOZE')} disabled={!selectedConversation}>Snooze</button>
-                  <button className="action-btn dismiss" onClick={() => completeConversation('DISMISSED')} disabled={!selectedConversation}>Dismiss</button>
-                  <button className="action-btn dismiss" onClick={deleteConversation} disabled={!selectedConversation}>Delete Chat</button>
+                  <button className="action-btn paid" onClick={() => completeConversation('PAID')} disabled={!activeConversationId}>Mark as Paid</button>
+                  <button className="action-btn snooze" onClick={() => completeConversation('SNOOZE')} disabled={!activeConversationId}>Snooze</button>
+                  <button className="action-btn dismiss" onClick={() => completeConversation('DISMISSED')} disabled={!activeConversationId}>Dismiss</button>
+                  <button className="action-btn dismiss" onClick={deleteConversation} disabled={!activeConversationId}>Delete Chat</button>
                 </div>
               </div>
             </>
