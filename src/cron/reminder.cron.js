@@ -1,7 +1,9 @@
 const cron = require('node-cron');
 const Due = require('../models/db').Dues;
-// Schedule a cron job to send reminders for dues due in 3 days
-const cronExpression = '* * * * *';
+const CRON_TIMEZONE = process.env.CRON_TIMEZONE || 'UTC';
+const REMINDER_CRON_EXPRESSION = process.env.REMINDER_CRON_EXPRESSION || '* * * * *';
+// Schedule reminder checks (default every minute, configurable via env).
+const cronExpression = REMINDER_CRON_EXPRESSION;
 const reminderHandler = async () => {
     try{
         const activeStatusExpr = {
@@ -11,19 +13,53 @@ const reminderHandler = async () => {
             ]
         };
 
-        console.log('Reminder Cron Job Started');
-        const now = new Date();
-        const todayStart = new Date(now.setHours(0, 0, 0, 0));
-      const todayEnd = new Date(now.setHours(23, 59, 59, 999));
+        const todayStartExpr = {
+            $dateTrunc: {
+                date: '$$NOW',
+                unit: 'day',
+                timezone: CRON_TIMEZONE,
+            },
+        };
+        const tomorrowStartExpr = {
+            $dateAdd: {
+                startDate: todayStartExpr,
+                unit: 'day',
+                amount: 1,
+            },
+        };
+        const upcomingEndExclusiveExpr = {
+            $dateAdd: {
+                startDate: todayStartExpr,
+                unit: 'day',
+                amount: 3,
+            },
+        };
+        const dueDayExpr = {
+            $dateTrunc: {
+                date: '$dueDate',
+                unit: 'day',
+                timezone: CRON_TIMEZONE,
+            },
+        };
+        const snoozeDayExpr = {
+            $dateTrunc: {
+                date: '$snoozeDate',
+                unit: 'day',
+                timezone: CRON_TIMEZONE,
+            },
+        };
 
-      //upcoming date after 2 days
-        const upcomingLimit = new Date(todayStart);
-        upcomingLimit.setDate(todayStart.getDate() + 2);
-        console.log('Fetching dues due between', todayStart, 'and', upcomingLimit);
+        console.log(`Reminder Cron Job Started [${CRON_TIMEZONE}]`);
 
         const upcomingDues = await Due.find({
-            dueDate: { $gte: todayStart, $lte: upcomingLimit },
-            $expr: activeStatusExpr
+            // UPCOMING starts from tomorrow to avoid overlap with DUE_TODAY.
+            $expr: {
+                $and: [
+                    activeStatusExpr,
+                    { $gte: [dueDayExpr, tomorrowStartExpr] },
+                    { $lt: [dueDayExpr, upcomingEndExclusiveExpr] },
+                ]
+            }
         });
         console.log('Found upcomingDues:', upcomingDues.length);
         for(const due of upcomingDues){
@@ -45,8 +81,12 @@ const reminderHandler = async () => {
 
         //Due today
         const dueTodayDues = await Due.find({
-            dueDate: { $gte: todayStart, $lte: todayEnd },
-            $expr: activeStatusExpr
+            $expr: {
+                $and: [
+                    activeStatusExpr,
+                    { $eq: [dueDayExpr, todayStartExpr] },
+                ]
+            }
         });
         console.log('Found dueTodayDues:', dueTodayDues.length);
         for(const due of dueTodayDues){
@@ -68,12 +108,21 @@ const reminderHandler = async () => {
 
         //Overdue dues
         const overdueDues = await Due.find({
-            dueDate: { $lt: todayStart },
-            $expr: activeStatusExpr,
+            $expr: {
+                $and: [
+                    activeStatusExpr,
+                    { $lt: [dueDayExpr, todayStartExpr] },
+                ]
+            },
             // Do not send overdue reminders before the snooze date has passed.
             $or: [
                 { snoozeDate: null },
-                { snoozeDate: { $lte: todayStart } }
+                { snoozeDate: { $exists: false } },
+                {
+                    $expr: {
+                        $lt: [snoozeDayExpr, todayStartExpr]
+                    }
+                }
             ]
         });
         console.log('Found overdueDues:', overdueDues.length);
@@ -101,6 +150,6 @@ const reminderHandler = async () => {
 };
 
 const reminderCron = typeof cron.createTask === 'function'
-    ? cron.createTask(cronExpression, reminderHandler, { timezone: "UTC" })
-    : cron.schedule(cronExpression, reminderHandler, { scheduled: false, timezone: "UTC" });
+    ? cron.createTask(cronExpression, reminderHandler, { timezone: CRON_TIMEZONE })
+    : cron.schedule(cronExpression, reminderHandler, { scheduled: false, timezone: CRON_TIMEZONE });
 module.exports = reminderCron;
