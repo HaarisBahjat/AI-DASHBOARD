@@ -4,6 +4,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "stop:backend": "node scripts/stop-backend.js",
+    "restart": "npm run stop:backend && npm start",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

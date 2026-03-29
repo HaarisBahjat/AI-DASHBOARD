@@ -26,24 +26,24 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer,userId}) => {
       }
       //LOAD CONVERSATION
       const session= await conversationSession.findById(conversationId);
+      let currentSession = session;
       let sessionExists = true;
       if(!session){
         // Create a new session for testing
-        const newSession = await conversationSession.create({
+        currentSession = await conversationSession.create({
           userId: userId,
           status: "IN_PROGRESS",
           clarificationState: "NONE",
           pendingIntent: null,
           pendingData: null
         });
-        conversationId = newSession._id.toString();
+        conversationId = currentSession._id.toString();
         sessionExists = false;
       }
-      const currentSession = sessionExists ? session : newSession;
       if (sessionExists && currentSession.userId.toString() !== userId.toString()) {
     throw new Error("Access denied");
   }
-    if(currentSession.status==="completed"){
+    if(currentSession.status==="COMPLETED"){
         throw new Error("Conversation session is already completed");
     }
     //saave user message to db
@@ -108,7 +108,7 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer,userId}) => {
     const intentData= await llmService.detectIntent(text);
     if(!intentData || !intentData.intent){
       replytext="Sorry, I couldn't understand your request. Could you please rephrase?";
-      return finalizeReply(session, replytext);
+      return finalizeReply(currentSession, replytext);
     }
     
     // Normalize intent to lowercase for consistent comparison
@@ -239,16 +239,24 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer,userId}) => {
 };
 
 async function finalizeReply(session, replytext) {
-    const audioBuffer = await textToSpeech(replytext);
     await conversationMessage.create({
         conversationId: session._id,
         roles: "SYSTEM",
         message: replytext
     });
+
+    let audioBuffer = null;
+    try {
+      audioBuffer = await textToSpeech(replytext);
+    } catch (ttsError) {
+      // Graceful degradation: return text response even if voice synthesis is temporarily down.
+      console.error("TTS unavailable in finalizeReply:", ttsError.message);
+    }
+
     return { 
-  message: replytext,
-  audioBuffer: Array.from(audioBuffer)
-};
+      message: replytext,
+      audioBuffer: audioBuffer ? Array.from(audioBuffer) : null
+    };
 }
 
 

@@ -1,7 +1,25 @@
 const { audio } = require('@elevenlabs/elevenlabs-js/api/resources/dubbing');
 const {processVoiceMessage} = require('../Service/voice.service');
+const jwt = require('jsonwebtoken');
+
+const SECRET_KEY = 'your_secret_key';
+
 module.exports = (io) => {
     io.on('connection', (socket) => {
+        // Attempt to authenticate socket connection using token from handshake auth
+        try {
+            const authToken = socket.handshake?.auth?.token;
+            if (authToken) {
+                const decoded = jwt.verify(authToken, SECRET_KEY);
+                if (decoded?.userId) {
+                    socket.join(`user:${decoded.userId}`);
+                    socket.data.userId = String(decoded.userId);
+                }
+            }
+        } catch (err) {
+            console.warn('Socket auth parse failed:', err.message);
+        }
+
         console.log('A user connected: ' + socket.id);
         socket.on('voice-message', async (data) => {
                

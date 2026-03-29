@@ -30,7 +30,7 @@ const upsertConversation = (list, nextConversation) => {
     return [nextConversation, ...withoutCurrent];
 };
 
-export default function VoiceAssistant({ userId }) {
+export default function VoiceAssistant({ userId, profile: _profile }) {
 
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
