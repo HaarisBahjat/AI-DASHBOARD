@@ -58,6 +58,7 @@ exports.listConversations = async (req, res) => {
             dueDate: session?.dueId?.dueDate || null,
             dueAmount: session?.dueId?.amount || null,
             status: session.status,
+            finalOutcomeAction: session?.finalOutcome?.action || null,
             channel: session.channel,
             sessionDate: session.sessionDate,
             parentConversationId: session.parentConversationId || null,

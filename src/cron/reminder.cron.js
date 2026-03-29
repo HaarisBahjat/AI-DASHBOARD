@@ -1,8 +1,16 @@
 const cron = require('node-cron');
 const Due = require('../models/db').Dues;
 // Schedule a cron job to send reminders for dues due in 3 days
-const reminderCron = cron.schedule('* * * * *', async () => {
+const cronExpression = '* * * * *';
+const reminderHandler = async () => {
     try{
+        const activeStatusExpr = {
+            $in: [
+                { $toUpper: { $trim: { input: '$status' } } },
+                ['UNPAID', 'OVERDUE']
+            ]
+        };
+
         console.log('Reminder Cron Job Started');
         const now = new Date();
         const todayStart = new Date(now.setHours(0, 0, 0, 0));
@@ -15,7 +23,7 @@ const reminderCron = cron.schedule('* * * * *', async () => {
 
         const upcomingDues = await Due.find({
             dueDate: { $gte: todayStart, $lte: upcomingLimit },
-            status: { $in: ['UNPAID', 'OVERDUE'] }
+            $expr: activeStatusExpr
         });
         console.log('Found upcomingDues:', upcomingDues.length);
         for(const due of upcomingDues){
@@ -38,7 +46,7 @@ const reminderCron = cron.schedule('* * * * *', async () => {
         //Due today
         const dueTodayDues = await Due.find({
             dueDate: { $gte: todayStart, $lte: todayEnd },
-            status: { $in: ['UNPAID', 'OVERDUE'] }
+            $expr: activeStatusExpr
         });
         console.log('Found dueTodayDues:', dueTodayDues.length);
         for(const due of dueTodayDues){
@@ -61,7 +69,12 @@ const reminderCron = cron.schedule('* * * * *', async () => {
         //Overdue dues
         const overdueDues = await Due.find({
             dueDate: { $lt: todayStart },
-            status: { $in: ['UNPAID', 'OVERDUE'] }
+            $expr: activeStatusExpr,
+            // Do not send overdue reminders before the snooze date has passed.
+            $or: [
+                { snoozeDate: null },
+                { snoozeDate: { $lte: todayStart } }
+            ]
         });
         console.log('Found overdueDues:', overdueDues.length);
         for(const due of overdueDues){
@@ -85,8 +98,9 @@ const reminderCron = cron.schedule('* * * * *', async () => {
         console.error('Error in Reminder Cron Job:', error.message);
         console.error('Stack:', error.stack);
     }
-}, {
-    scheduled: true,
-    timezone: "UTC"
-});
+};
+
+const reminderCron = typeof cron.createTask === 'function'
+    ? cron.createTask(cronExpression, reminderHandler, { timezone: "UTC" })
+    : cron.schedule(cronExpression, reminderHandler, { scheduled: false, timezone: "UTC" });
 module.exports = reminderCron;

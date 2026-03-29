@@ -21,13 +21,15 @@
 .assistant-header h2 {
   margin: 0;
   color: #f1f5ff;
-  font-size: 32px;
+  font-size: 28px;
+  font-weight: 700;
 }
 
 .assistant-header p {
   margin: 4px 0 0;
   color: #7f96bf;
-  font-size: 18px;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .assistant-state-pill {
@@ -37,6 +39,7 @@
   border-radius: 999px;
   padding: 7px 14px;
   font-size: 14px;
+  font-weight: 500;
 }
 
 .assistant-state-pill.error {
@@ -55,11 +58,13 @@
   font-size: 12px;
   letter-spacing: 1px;
   text-transform: uppercase;
+  font-weight: 600;
 }
 
 .assistant-status-line {
   margin: 8px 24px 0;
   color: #9ab0d8;
+  font-weight: 500;
 }
 
 .assistant-status-line.error {
@@ -79,7 +84,7 @@
   border: 1px solid #2b3f63;
   border-radius: 12px;
   cursor: pointer;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .assistant-primary-btn {
@@ -120,8 +125,9 @@
 .assistant-empty {
   margin: auto;
   color: #5f7299;
-  font-size: 28px;
+  font-size: 22px;
   text-align: center;
+  font-weight: 500;
 }
 
 .assistant-message {
@@ -143,6 +149,7 @@
   justify-content: space-between;
   margin-bottom: 6px;
   font-size: 12px;
+  font-weight: 600;
 }
 
 .assistant-message-top small {
@@ -189,7 +196,7 @@
   background: linear-gradient(180deg, #2f66ff 0%, #2555dd 100%);
   border-color: #3b6fff;
   color: #f3f7ff;
-  font-size: 22px;
+  font-size: 16px;
 }
 
 .assistant-start-btn.recording {
@@ -216,12 +223,14 @@
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 1px;
+  font-weight: 600;
 }
 
 .assistant-reply-block p {
   margin: 0;
   color: #d6def2;
-  font-size: 28px;
+  font-size: 22px;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
