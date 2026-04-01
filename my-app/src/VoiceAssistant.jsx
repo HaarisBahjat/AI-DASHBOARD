@@ -2,8 +2,6 @@
 import { io } from 'socket.io-client';
 import './VoiceAssistant.css';
 
-const socket = io('http://localhost:3004'); // Adjust the URL as needed
-
 const getAuthHeaders = () => {
     const token = localStorage.getItem('authToken');
     return {
@@ -35,6 +33,7 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
     const recognitionRef = useRef(null);
+    const socketRef = useRef(null);
 
     const [isRecording, setIsRecording] = useState(false);
     const [replyMessage, setReplyMessage] = useState('');
@@ -95,8 +94,17 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
         }
     }, [historyKey]);
 
-    // Socket listener for assistant voice replies
+    // Socket lifecycle for assistant voice replies
     useEffect(() => {
+        if (!userId) return;
+
+        const authToken = localStorage.getItem('authToken');
+        const socket = io('http://localhost:3004', authToken ? {
+            auth: { token: authToken }
+        } : undefined);
+
+        socketRef.current = socket;
+
         const onVoiceReply = (data) => {
             setReplyMessage(data.message);
             setMessages(prev => [...prev, {
@@ -110,12 +118,26 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
                 const blob = new Blob([new Uint8Array(data.audioBuffer)], { type: 'audio/mpeg' });
                 const audio = new Audio(URL.createObjectURL(blob));
                 audio.play();
+            } else if (data.audioFile) {
+                const audio = new Audio(`http://localhost:3004${data.audioFile}`);
+                audio.play();
             }
         };
 
+        const onConnectError = () => {
+            setError('Realtime connection failed. Please refresh and try again.');
+        };
+
         socket.on('voice-reply', onVoiceReply);
-        return () => socket.off('voice-reply', onVoiceReply);
-    }, []);
+        socket.on('connect_error', onConnectError);
+
+        return () => {
+            socket.off('voice-reply', onVoiceReply);
+            socket.off('connect_error', onConnectError);
+            socket.disconnect();
+            if (socketRef.current === socket) socketRef.current = null;
+        };
+    }, [userId]);
 
     const loadConversation = async (id) => {
         if (!userId || !id) return;
@@ -291,22 +313,17 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
                 timestamp: new Date().toISOString(),
             }]);
 
-            socket.emit('voice-message', {
+            if (!socketRef.current) {
+                setError('Realtime socket unavailable. Please refresh and try again.');
+                return;
+            }
+
+            socketRef.current.emit('voice-message', {
                 audioBuffer: Array.from(new Uint8Array(arrayBuffer)),
                 userId,
                 conversationId,
                 transcript: speechTranscript,
             });
-
-            try {
-                await fetch(`http://localhost:3004/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
-                    method: 'POST',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({ userId, type: 'user', text: userMessage, transcript: speechTranscript, timestamp: new Date().toISOString() }),
-                });
-            } catch (err) {
-                console.warn('Failed to persist message to backend', err);
-            }
         };
 
         recorder.start();

@@ -273,6 +273,35 @@ exports.getConversation=async(req,res)=>{
     }
 };
 
+// Legacy compatibility route: returns messages payload with conversationId.
+exports.getConversationMessages = async (req, res) => {
+    try {
+        const { conversationId } = req.params;
+
+        if (!validateConversationId(conversationId, res)) {
+            return;
+        }
+
+        const session = await conversationSession.findById(conversationId);
+        if (!session) {
+            return res.status(404).json({ error: "Conversation session not found" });
+        }
+
+        if (session.userId.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ error: "Access denied" });
+        }
+
+        const messages = await conversationMessage
+            .find({ conversationId })
+            .sort({ createdAt: 1 });
+
+        res.json({ conversationId, messages });
+    } catch (err) {
+        console.error("Error fetching conversation messages:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+};
+
 //USER SENDS A MESSAGE
 exports.addMessage=async(req,res)=>{
     try{
@@ -398,15 +427,26 @@ exports.completeConversation=async(req,res)=>{
 
 //VOICE MESSAGE UPLOAD AND CONVERSION TO TEXT
 exports.addVoiceMessage = async (req, res) => {
-    const result= await processVoiceMessage({
-        audioBuffer: req.file.buffer,
-        conversationId: req.params.conversationId,
-        userId: req.user._id
-    });
-    res.json({
-        message: result.message,
-        audioFile: result.audioFile
-    });
+    try {
+        if (!req.file || !req.file.buffer) {
+            return res.status(400).json({ error: "Audio file is required" });
+        }
+
+        const result= await processVoiceMessage({
+            audioBuffer: req.file.buffer,
+            conversationId: req.params.conversationId,
+            userId: req.user._id
+        });
+
+        res.json({
+            message: result.message,
+            audioBuffer: result.audioBuffer || null,
+            audioFile: result.audioFile || null,
+        });
+    } catch (err) {
+        console.error("Error handling voice message:", err);
+        res.status(500).json({ error: "Internal server error", details: err.message });
+    }
     /*try {
 
         if (typeof sttService?.speechToText !== "function") {
