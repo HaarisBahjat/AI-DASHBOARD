@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import io from 'socket.io-client';
+import { ArcElement, Chart as ChartJS, Legend, Tooltip } from 'chart.js';
+import { Doughnut } from 'react-chartjs-2';
 import './VoiceChat.css';
+
+ChartJS.register(ArcElement, Tooltip, Legend);
 
 /*
   Architecture Notes (VoiceChat)
@@ -18,6 +22,16 @@ const getAuthHeaders = (token) => ({
   'Content-Type': 'application/json',
   Authorization: `Bearer ${token}`,
 });
+
+const normalizeDueStatus = (status) => String(status || '').trim().toUpperCase();
+
+const formatCurrency = (amount) => new Intl.NumberFormat(undefined, {
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 0,
+}).format(Number(amount) || 0);
+
+const formatDays = (days) => `${Number(days || 0).toFixed(1)} days`;
 
 const NAV_ITEMS = [
   { key: 'conversations', label: 'Conversations' },
@@ -196,6 +210,8 @@ function VoiceChat({ onLogout, profile }) {
   const [selectedThreadKey, setSelectedThreadKey] = useState(null);
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [dues, setDues] = useState([]);
+  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [voiceSetupHint, setVoiceSetupHint] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -325,6 +341,162 @@ function VoiceChat({ onLogout, profile }) {
     setConversations(withDetails);
   };
 
+  const refreshDues = async (tokenOverride) => {
+    const token = tokenOverride || localStorage.getItem('authToken');
+    if (!token) return;
+
+    setIsAnalyticsLoading(true);
+    try {
+      const response = await fetch('http://localhost:3004/api/dues', {
+        headers: getAuthHeaders(token)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch dues (${response.status})`);
+      }
+
+      const data = await response.json();
+      setDues(Array.isArray(data?.dues) ? data.dues : []);
+    } catch (err) {
+      console.error('Failed to auto-load dues:', err.message);
+    } finally {
+      setIsAnalyticsLoading(false);
+    }
+  };
+
+  const analytics = useMemo(() => {
+    const totals = {
+      paid: 0,
+      unpaid: 0,
+      overdue: 0,
+      paidAmount: 0,
+      unpaidAmount: 0,
+      overdueAmount: 0,
+      totalAmount: 0,
+      upcoming7Days: 0,
+      avgPaymentDelayDays: 0,
+      latePaidCount: 0,
+    };
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const next7 = new Date(today);
+    next7.setDate(next7.getDate() + 7);
+
+    const overdueItems = [];
+    let paidDelayTotalDays = 0;
+
+    dues.forEach((due) => {
+      const amount = Number(due?.amount) || 0;
+      const normalizedStatus = normalizeDueStatus(due?.status);
+      const dueDate = due?.dueDate ? new Date(due.dueDate) : null;
+
+      totals.totalAmount += amount;
+
+      if (normalizedStatus === 'PAID') {
+        totals.paid += 1;
+        totals.paidAmount += amount;
+
+        if (dueDate && due?.updatedAt) {
+          const paidAt = new Date(due.updatedAt);
+          const delayMs = paidAt.getTime() - dueDate.getTime();
+          const delayDays = delayMs / (1000 * 60 * 60 * 24);
+
+          if (delayDays > 0) {
+            totals.latePaidCount += 1;
+            paidDelayTotalDays += delayDays;
+          }
+        }
+      } else if (normalizedStatus === 'OVERDUE') {
+        totals.overdue += 1;
+        totals.overdueAmount += amount;
+        overdueItems.push({
+          title: due?.title || 'Untitled Due',
+          amount,
+          dueDate,
+        });
+      } else {
+        totals.unpaid += 1;
+        totals.unpaidAmount += amount;
+      }
+
+      if (dueDate && dueDate >= today && dueDate <= next7 && normalizedStatus !== 'PAID') {
+        totals.upcoming7Days += 1;
+      }
+    });
+
+    overdueItems.sort((a, b) => b.amount - a.amount);
+    const topOverdue = overdueItems.slice(0, 5);
+
+    totals.avgPaymentDelayDays = totals.latePaidCount > 0
+      ? paidDelayTotalDays / totals.latePaidCount
+      : 0;
+
+    const conversationTotals = {
+      threads: billThreads.length,
+      sessions: conversations.length,
+      activeSessions: conversations.filter((conv) => conv.status !== 'COMPLETED').length,
+      completedSessions: conversations.filter((conv) => conv.status === 'COMPLETED').length,
+      totalMessages: conversations.reduce((acc, conv) => acc + (conv.messages?.length || 0), 0),
+    };
+
+    return {
+      duesCount: dues.length,
+      totals,
+      topOverdue,
+      conversationTotals,
+    };
+  }, [dues, billThreads.length, conversations]);
+
+  const billStatusChartData = useMemo(() => ({
+    labels: ['Paid', 'Unpaid', 'Overdue'],
+    datasets: [
+      {
+        label: 'Bill Count',
+        data: [analytics.totals.paid, analytics.totals.unpaid, analytics.totals.overdue],
+        backgroundColor: [
+          'rgba(52, 211, 153, 0.86)',
+          'rgba(79, 142, 247, 0.86)',
+          'rgba(248, 113, 113, 0.9)',
+        ],
+        borderColor: [
+          'rgba(52, 211, 153, 1)',
+          'rgba(79, 142, 247, 1)',
+          'rgba(248, 113, 113, 1)',
+        ],
+        borderWidth: 1,
+        hoverOffset: 6,
+      },
+    ],
+  }), [analytics.totals.overdue, analytics.totals.paid, analytics.totals.unpaid]);
+
+  const billStatusChartOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '62%',
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          color: '#c5d7f2',
+          usePointStyle: true,
+          pointStyle: 'circle',
+          boxWidth: 10,
+          padding: 16,
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label(context) {
+            const label = context.label || '';
+            const value = context.parsed || 0;
+            return `${label}: ${value}`;
+          },
+        },
+      },
+    },
+  }), []);
+
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
@@ -441,6 +613,7 @@ function VoiceChat({ onLogout, profile }) {
     refreshConversations(authToken).catch((err) => {
       console.error('Failed to auto-load conversations:', err.message);
     });
+    refreshDues(authToken);
 
     return () => newSocket.close();
   }, []);
@@ -655,6 +828,7 @@ function VoiceChat({ onLogout, profile }) {
       const authToken = localStorage.getItem('authToken');
       if (authToken) {
         await refreshConversations(authToken);
+        await refreshDues(authToken);
       }
     } catch (error) {
       alert(`Error: ${error.message}`);
@@ -764,7 +938,102 @@ function VoiceChat({ onLogout, profile }) {
           </div>
         </div>
 
-        {activeTab !== 'conversations' ? (
+        {activeTab === 'analytics' ? (
+          <div className="analytics-dashboard">
+            <div className="analytics-head">
+              <h2>Analytics</h2>
+              <p>{isAnalyticsLoading ? 'Refreshing metrics...' : 'Live overview of dues and voice collections.'}</p>
+            </div>
+
+            <div className="analytics-kpis">
+              <article className="kpi-card">
+                <span className="kpi-label">Total Dues</span>
+                <strong className="kpi-value">{analytics.duesCount}</strong>
+                <small className="kpi-sub">{formatCurrency(analytics.totals.totalAmount)} tracked</small>
+              </article>
+              <article className="kpi-card">
+                <span className="kpi-label">Overdue Exposure</span>
+                <strong className="kpi-value danger">{formatCurrency(analytics.totals.overdueAmount)}</strong>
+                <small className="kpi-sub">{analytics.totals.overdue} overdue dues</small>
+              </article>
+              <article className="kpi-card">
+                <span className="kpi-label">Collected</span>
+                <strong className="kpi-value success">{formatCurrency(analytics.totals.paidAmount)}</strong>
+                <small className="kpi-sub">
+                  {analytics.totals.paid} paid dues • Avg delay {formatDays(analytics.totals.avgPaymentDelayDays)}
+                </small>
+              </article>
+              <article className="kpi-card">
+                <span className="kpi-label">Upcoming (7d)</span>
+                <strong className="kpi-value">{analytics.totals.upcoming7Days}</strong>
+                <small className="kpi-sub">Non-paid dues due soon</small>
+              </article>
+            </div>
+
+            <div className="analytics-grid">
+              <section className="analytics-card">
+                <h3>Status Distribution</h3>
+                <div className="status-chart-wrap">
+                  <Doughnut data={billStatusChartData} options={billStatusChartOptions} />
+                </div>
+                <div className="status-chart-summary">
+                  <span>Paid: {analytics.totals.paid} ({formatCurrency(analytics.totals.paidAmount)})</span>
+                  <span>Unpaid: {analytics.totals.unpaid} ({formatCurrency(analytics.totals.unpaidAmount)})</span>
+                  <span>Overdue: {analytics.totals.overdue} ({formatCurrency(analytics.totals.overdueAmount)})</span>
+                </div>
+              </section>
+
+              <section className="analytics-card">
+                <h3>Conversation Throughput</h3>
+                <div className="mini-stats">
+                  <div>
+                    <span>Bill Threads</span>
+                    <strong>{analytics.conversationTotals.threads}</strong>
+                  </div>
+                  <div>
+                    <span>Sessions</span>
+                    <strong>{analytics.conversationTotals.sessions}</strong>
+                  </div>
+                  <div>
+                    <span>Active Sessions</span>
+                    <strong>{analytics.conversationTotals.activeSessions}</strong>
+                  </div>
+                  <div>
+                    <span>Completed Sessions</span>
+                    <strong>{analytics.conversationTotals.completedSessions}</strong>
+                  </div>
+                  <div>
+                    <span>Total Messages</span>
+                    <strong>{analytics.conversationTotals.totalMessages}</strong>
+                  </div>
+                  <div>
+                    <span>Avg Payment Delay</span>
+                    <strong>{formatDays(analytics.totals.avgPaymentDelayDays)}</strong>
+                  </div>
+                </div>
+              </section>
+
+              <section className="analytics-card overdue-list-card">
+                <h3>Top Overdue Dues</h3>
+                {analytics.topOverdue.length === 0 ? (
+                  <p className="analytics-empty">No overdue dues right now.</p>
+                ) : (
+                  <div className="overdue-list">
+                    {analytics.topOverdue.map((item, idx) => (
+                      <div key={`${item.title}-${idx}`} className="overdue-item">
+                        <div>
+                          <strong>{item.title}</strong>
+                          <span>{item.dueDate ? item.dueDate.toLocaleDateString() : 'No due date'}</span>
+                        </div>
+                        <b>{formatCurrency(item.amount)}</b>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
+        ) : activeTab !== 'conversations' ? (
           <div className="tab-placeholder">
             <h2>{NAV_ITEMS.find((n) => n.key === activeTab)?.label}</h2>
             <p>This tab is intentionally empty for now.</p>

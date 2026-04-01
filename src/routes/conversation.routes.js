@@ -8,6 +8,8 @@ const upload = require('../midddlewares/upload');
 router.post('/', auth, conversationController.createConversation);
 router.get('/', auth, conversationController.listConversations);
 router.get('/:conversationId', auth, conversationController.getConversation);
+router.get('/:conversationId/messages', auth, conversationController.getConversationMessages);
+router.get('/:conversationId/message', auth, conversationController.getConversationMessages);
 router.post('/:conversationId/message', auth, conversationController.addMessage);
 router.post('/:conversationId/messages', auth, conversationController.addMessage);
 router.delete('/:conversationId', auth, conversationController.deleteConversation);
