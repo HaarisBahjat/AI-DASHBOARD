@@ -64,9 +64,26 @@
   border-radius: 12px;
   padding: 12px 13px;
   text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
+}
+
+.soon-pill {
+  border: 1px solid rgba(251, 191, 36, 0.34);
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--amber);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  white-space: nowrap;
 }
 
 .sidebar-nav-item.active {
@@ -746,6 +763,418 @@
   font-weight: 500;
 }
 
+.finance-dashboard {
+  margin: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--s0);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.finance-head h2 {
+  margin: 0;
+  color: var(--fg);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.finance-head p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.finance-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.finance-kpi-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(160deg, rgba(17, 28, 49, 0.95) 0%, rgba(12, 19, 34, 0.96) 100%);
+  padding: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.finance-kpi-card span {
+  color: var(--ghost);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 600;
+}
+
+.finance-kpi-card strong {
+  color: var(--fg);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.finance-kpi-card small {
+  color: var(--sub-label);
+  font-size: 12px;
+}
+
+.finance-kpi-card.danger strong {
+  color: var(--rose);
+}
+
+.finance-kpi-card.success strong {
+  color: var(--green);
+}
+
+.finance-middle-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 12px;
+}
+
+.finance-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--s1);
+  padding: 12px;
+}
+
+.finance-card h3 {
+  margin: 0 0 10px;
+  color: var(--body);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.collections-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.collections-row {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.collections-row span {
+  color: var(--sub-label);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.collections-row b {
+  color: var(--body);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.collections-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.collections-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(79, 142, 247, 0.95) 0%, rgba(45, 212, 191, 0.95) 100%);
+}
+
+.aging-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.aging-grid div {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aging-grid span {
+  color: var(--sub-label);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.aging-grid strong {
+  color: var(--fg);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.aging-grid small {
+  color: var(--ghost);
+  font-size: 12px;
+}
+
+.finance-bottom-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--s1);
+  padding: 12px;
+}
+
+.finance-actions-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--s1);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.finance-actions-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.finance-actions-head h3 {
+  margin: 0;
+  color: var(--body);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.finance-actions-head span {
+  color: var(--ghost);
+  font-size: 12px;
+  text-align: right;
+}
+
+.finance-action-notice {
+  margin: 0;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.finance-actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.finance-action-row {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.finance-action-main h4 {
+  margin: 0;
+  color: var(--body);
+  font-size: 14px;
+}
+
+.finance-action-main p {
+  margin: 4px 0 0;
+  color: var(--sub-label);
+  font-size: 12px;
+}
+
+.finance-action-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.finance-row-status {
+  border: 1px solid var(--border-mid);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.finance-row-status.pending {
+  color: var(--blue-text);
+  border-color: rgba(79, 142, 247, 0.35);
+  background: rgba(79, 142, 247, 0.1);
+}
+
+.finance-row-status.overdue {
+  color: var(--rose);
+  border-color: rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.finance-inline-btn {
+  border: 1px solid var(--border-mid);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--body);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.finance-inline-btn.paid {
+  color: var(--green);
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(52, 211, 153, 0.1);
+}
+
+.finance-inline-btn.snooze {
+  color: var(--amber);
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.finance-inline-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.finance-bottom-tabs {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.finance-tab-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--sub-label);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.finance-tab-btn.active {
+  color: var(--blue-text);
+  border-color: rgba(79, 142, 247, 0.32);
+  background: rgba(79, 142, 247, 0.1);
+}
+
+.payment-methods-list,
+.transactions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.payment-method-item,
+.transaction-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.payment-method-item h4,
+.transaction-item h4 {
+  margin: 0;
+  color: var(--body);
+  font-size: 14px;
+}
+
+.payment-method-item p,
+.transaction-item p {
+  margin: 3px 0 0;
+  color: var(--sub-label);
+  font-size: 12px;
+}
+
+.payment-method-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.payment-method-actions button {
+  border: 1px solid var(--border-mid);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--body);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.method-status {
+  border: 1px solid var(--border-mid);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.method-status.pending {
+  color: var(--amber);
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.method-status.ready {
+  color: var(--green);
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(52, 211, 153, 0.1);
+}
+
+.transaction-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.transaction-right strong {
+  color: var(--green);
+  font-size: 14px;
+}
+
+.transaction-right span {
+  color: var(--ghost);
+  font-size: 11px;
+}
+
+.integration-note,
+.finance-empty {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .analytics-dashboard {
   margin: 16px;
   border: 1px solid var(--border);
@@ -1002,6 +1431,14 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .finance-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .finance-middle-grid {
+    grid-template-columns: 1fr;
+  }
+
   .analytics-card:nth-child(1),
   .analytics-card:nth-child(2),
   .overdue-list-card {
@@ -1010,6 +1447,33 @@
 
   .status-chart-summary {
     grid-template-columns: 1fr;
+  }
+
+  .finance-bottom-tabs {
+    width: 100%;
+  }
+
+  .finance-tab-btn {
+    flex: 1;
+  }
+
+  .payment-method-item,
+  .transaction-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .finance-action-row {
+    grid-template-columns: 1fr;
+  }
+
+  .finance-action-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .transaction-right {
+    align-items: flex-start;
   }
 
   .message {

@@ -41,12 +41,43 @@ exports.updatedueStatus = async (req,res) =>{
     try{
         const due = await Dues.findOneAndUpdate(
             { _id: req.params.dueId, userId: req.user._id },
-            { status: "PAID" },
+            { status: "PAID", snoozeDate: null },
             { new: true }
         );
+
+        if (!due) {
+            return res.status(404).json({ message: 'Due not found' });
+        }
+
         res.status(200).json({ message: 'Due Marked as PAID', due });
     } catch (error) {
         res.status(500).json({ message: 'Error updating due status', error: error.message });
+    }
+};
+
+// Snooze a due and push reminders/status checks to a future date
+exports.snoozeDue = async (req, res) => {
+    try {
+        const rawSnoozeDate = req.body?.snoozeDate;
+        const snoozeDate = rawSnoozeDate ? new Date(rawSnoozeDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+        if (Number.isNaN(snoozeDate.getTime())) {
+            return res.status(400).json({ message: 'Invalid snooze date' });
+        }
+
+        const due = await Dues.findOneAndUpdate(
+            { _id: req.params.dueId, userId: req.user._id },
+            { status: 'UNPAID', snoozeDate },
+            { new: true }
+        );
+
+        if (!due) {
+            return res.status(404).json({ message: 'Due not found' });
+        }
+
+        res.status(200).json({ message: 'Due snoozed successfully', due });
+    } catch (error) {
+        res.status(500).json({ message: 'Error snoozing due', error: error.message });
     }
 };
 
