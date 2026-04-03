@@ -10,6 +10,8 @@ router.post('/', authMiddleware, duesController.createDue);
 router.get('/', authMiddleware, duesController.getDuesByUser);
 // Update due status to PAID
 router.patch('/:dueId/pay', authMiddleware, duesController.updatedueStatus);
+// Snooze a due to a future date
+router.patch('/:dueId/snooze', authMiddleware, duesController.snoozeDue);
 // Admin: Get all dues
 router.get('/admin/all', authMiddleware, roleAuth(['ADMIN']), duesController.getAllDues);
 

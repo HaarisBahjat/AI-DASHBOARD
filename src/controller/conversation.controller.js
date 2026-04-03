@@ -397,7 +397,7 @@ exports.completeConversation=async(req,res)=>{
             return res.status(404).json({error:"Due not found"});
         }
         if(action==="PAID"){
-            due.snoozeDate=snoozeDate;
+            due.snoozeDate=null;
             due.status="PAID";
         }
         if(action==="SNOOZE"){

@@ -32,10 +32,16 @@ const formatCurrency = (amount) => new Intl.NumberFormat(undefined, {
 }).format(Number(amount) || 0);
 
 const formatDays = (days) => `${Number(days || 0).toFixed(1)} days`;
+const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : 'No date');
+
+const getMonthKey = (dateValue) => {
+  const date = new Date(dateValue);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
 
 const NAV_ITEMS = [
   { key: 'conversations', label: 'Conversations' },
-  { key: 'reminders', label: 'Reminders' },
+  { key: 'intellige', label: 'Intellige', soon: true },
   { key: 'finance', label: 'Finance' },
   { key: 'analytics', label: 'Analytics' },
   { key: 'settings', label: 'Settings' },
@@ -216,6 +222,9 @@ function VoiceChat({ onLogout, profile }) {
   const [voiceSetupHint, setVoiceSetupHint] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('conversations');
+  const [financeBottomTab, setFinanceBottomTab] = useState('paymentMethods');
+  const [financeActionLoadingId, setFinanceActionLoadingId] = useState(null);
+  const [financeActionNotice, setFinanceActionNotice] = useState('');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -496,6 +505,159 @@ function VoiceChat({ onLogout, profile }) {
       },
     },
   }), []);
+// Cron job trigger handler to create reminders and inject voice messages via sockets. This allows users to receive TTS reminders in the correct conversation threads even if they were created by the cron and not by user interactions.
+  const finance = useMemo(() => {
+    const now = new Date();
+    const monthKey = getMonthKey(now);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const summary = {
+      totalRevenue: 0,
+      pendingInvoices: 0,
+      pendingAmount: 0,
+      overdueInvoices: 0,
+      overdueAmount: 0,
+      paidThisMonth: 0,
+      paidThisMonthCount: 0,
+    };
+
+    const aging = {
+      current: { count: 0, amount: 0 },
+      d1to30: { count: 0, amount: 0 },
+      d31to60: { count: 0, amount: 0 },
+      d61plus: { count: 0, amount: 0 },
+    };
+
+    const recentTransactions = [];
+    const monthlyCollections = new Map();
+// Initialize last 6 months for the monthly collections chart.
+    for (let i = 5; i >= 0; i -= 1) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = getMonthKey(d);
+      monthlyCollections.set(key, {
+        key,
+        label: d.toLocaleDateString(undefined, { month: 'short' }),
+        amount: 0,
+      });
+    }
+// Iterate through dues to populate all analytics sections.
+    dues.forEach((due) => {
+      const amount = Number(due?.amount) || 0;
+      const status = normalizeDueStatus(due?.status);
+      const dueDate = due?.dueDate ? new Date(due.dueDate) : null;
+      const paidAt = due?.updatedAt ? new Date(due.updatedAt) : null;
+
+      if (status === 'PAID') {
+        summary.totalRevenue += amount;
+
+        if (paidAt && getMonthKey(paidAt) === monthKey) {
+          summary.paidThisMonth += amount;
+          summary.paidThisMonthCount += 1;
+        }
+
+        if (paidAt && monthlyCollections.has(getMonthKey(paidAt))) {
+          monthlyCollections.get(getMonthKey(paidAt)).amount += amount;
+        }
+
+        recentTransactions.push({
+          id: due?._id || `${due?.title}-${paidAt?.toISOString?.() || Date.now()}`,
+          title: due?.title || 'Payment',
+          amount,
+          paidAt,
+          method: 'Manual',
+          reference: `TXN-${String(due?._id || '').slice(-6).toUpperCase() || 'N/A'}`,
+        });
+        return;
+      }
+
+      if (status === 'OVERDUE') {
+        summary.overdueInvoices += 1;
+        summary.overdueAmount += amount;
+      }
+
+      summary.pendingInvoices += 1;
+      summary.pendingAmount += amount;
+
+      if (!dueDate || dueDate >= today) {
+        aging.current.count += 1;
+        aging.current.amount += amount;
+        return;
+      }
+// Calculate aging buckets based on how many days past due the invoice is.
+      const dayDiff = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (dayDiff <= 30) {
+        aging.d1to30.count += 1;
+        aging.d1to30.amount += amount;
+      } else if (dayDiff <= 60) {
+        aging.d31to60.count += 1;
+        aging.d31to60.amount += amount;
+      } else {
+        aging.d61plus.count += 1;
+        aging.d61plus.amount += amount;
+      }
+    });
+
+    recentTransactions.sort((a, b) => (b.paidAt?.getTime?.() || 0) - (a.paidAt?.getTime?.() || 0));
+
+    const monthlySeries = Array.from(monthlyCollections.values());
+    const monthlyMax = monthlySeries.reduce((max, item) => Math.max(max, item.amount), 0);
+// Handler for cron-triggered reminders to emit socket events with TTS audio and system messages in the correct conversation threads.
+    const paymentMethods = [
+      {
+        id: 'stripe',
+        name: 'Stripe',
+        status: 'Not Connected',
+        note: 'Cards, wallets, subscriptions',
+      },
+      {
+        id: 'paypal',
+        name: 'PayPal',
+        status: 'Not Connected',
+        note: 'Global checkout option',
+      },
+      {
+        id: 'bank-transfer',
+        name: 'Bank Transfer',
+        status: 'Manual',
+        note: 'Reconcile payments via admin flow',
+      },
+    ];
+
+    return {
+      summary,
+      aging,
+      recentTransactions: recentTransactions.slice(0, 8),
+      paymentMethods,
+      monthlySeries,
+      monthlyMax,
+    };
+  }, [dues]);
+
+  const financeActionRows = useMemo(() => {
+    const rows = dues
+      .filter((due) => normalizeDueStatus(due?.status) !== 'PAID')
+      .map((due) => ({
+        id: due?._id,
+        title: due?.title || 'Untitled Due',
+        amount: Number(due?.amount) || 0,
+        status: normalizeDueStatus(due?.status),
+        dueDate: due?.dueDate || null,
+        snoozeDate: due?.snoozeDate || null,
+      }))
+      .sort((a, b) => {
+        if (a.status !== b.status) {
+          if (a.status === 'OVERDUE') return -1;
+          if (b.status === 'OVERDUE') return 1;
+        }
+        const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+        const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+        return aDate - bDate;
+      });
+
+    return rows.slice(0, 10);
+  }, [dues]);
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -835,6 +997,48 @@ function VoiceChat({ onLogout, profile }) {
     }
   };
 
+  const performFinanceDueAction = async (dueId, action) => {
+    if (!dueId || !action) return;
+
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      alert('You are not logged in. Please login first.');
+      return;
+    }
+
+    const endpoint = action === 'PAID'
+      ? `http://localhost:3004/api/dues/${dueId}/pay`
+      : `http://localhost:3004/api/dues/${dueId}/snooze`;
+
+    const body = action === 'SNOOZE'
+      ? JSON.stringify({ snoozeDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() })
+      : null;
+
+    setFinanceActionLoadingId(`${dueId}:${action}`);
+    setFinanceActionNotice('');
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: getAuthHeaders(token),
+        body,
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.message || data?.error || 'Action failed');
+      }
+
+      await refreshDues(token);
+      await refreshConversations(token);
+      setFinanceActionNotice(action === 'PAID' ? 'Due marked paid.' : 'Due snoozed for 7 days.');
+    } catch (error) {
+      alert(`Finance action failed: ${error.message}`);
+    } finally {
+      setFinanceActionLoadingId(null);
+    }
+  };
+
   const deleteConversation = async () => {
     if (!activeConversationId) return;
 
@@ -879,7 +1083,8 @@ function VoiceChat({ onLogout, profile }) {
               className={`sidebar-nav-item ${activeTab === item.key ? 'active' : ''}`}
               onClick={() => setActiveTab(item.key)}
             >
-              {item.label}
+              <span>{item.label}</span>
+              {item.soon ? <small className="soon-pill">Soon to be released</small> : null}
             </button>
           ))}
         </div>
@@ -938,7 +1143,193 @@ function VoiceChat({ onLogout, profile }) {
           </div>
         </div>
 
-        {activeTab === 'analytics' ? (
+        {activeTab === 'finance' ? (
+          <div className="finance-dashboard">
+            <div className="finance-head">
+              <h2>Finance</h2>
+              <p>{isAnalyticsLoading ? 'Refreshing finance metrics...' : 'Operational billing and collections overview.'}</p>
+            </div>
+
+            <div className="finance-kpis">
+              <article className="finance-kpi-card">
+                <span>Total Revenue</span>
+                <strong>{formatCurrency(finance.summary.totalRevenue)}</strong>
+                <small>All paid invoices</small>
+              </article>
+              <article className="finance-kpi-card">
+                <span>Invoice Pending</span>
+                <strong>{finance.summary.pendingInvoices}</strong>
+                <small>{formatCurrency(finance.summary.pendingAmount)} outstanding</small>
+              </article>
+              <article className="finance-kpi-card danger">
+                <span>Overdue</span>
+                <strong>{finance.summary.overdueInvoices}</strong>
+                <small>{formatCurrency(finance.summary.overdueAmount)} at risk</small>
+              </article>
+              <article className="finance-kpi-card success">
+                <span>Paid This Month</span>
+                <strong>{formatCurrency(finance.summary.paidThisMonth)}</strong>
+                <small>{finance.summary.paidThisMonthCount} invoices cleared</small>
+              </article>
+            </div>
+
+            <div className="finance-middle-grid">
+              <section className="finance-card">
+                <h3>Collections (Last 6 Months)</h3>
+                <div className="collections-bars">
+                  {finance.monthlySeries.map((point) => (
+                    <div key={point.key} className="collections-row">
+                      <span>{point.label}</span>
+                      <div className="collections-track">
+                        <div
+                          className="collections-fill"
+                          style={{ width: `${finance.monthlyMax > 0 ? Math.max((point.amount / finance.monthlyMax) * 100, point.amount > 0 ? 6 : 0) : 0}%` }}
+                        ></div>
+                      </div>
+                      <b>{formatCurrency(point.amount)}</b>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="finance-card">
+                <h3>Invoice Aging</h3>
+                <div className="aging-grid">
+                  <div>
+                    <span>Current</span>
+                    <strong>{finance.aging.current.count}</strong>
+                    <small>{formatCurrency(finance.aging.current.amount)}</small>
+                  </div>
+                  <div>
+                    <span>1-30 Days</span>
+                    <strong>{finance.aging.d1to30.count}</strong>
+                    <small>{formatCurrency(finance.aging.d1to30.amount)}</small>
+                  </div>
+                  <div>
+                    <span>31-60 Days</span>
+                    <strong>{finance.aging.d31to60.count}</strong>
+                    <small>{formatCurrency(finance.aging.d31to60.amount)}</small>
+                  </div>
+                  <div>
+                    <span>61+ Days</span>
+                    <strong>{finance.aging.d61plus.count}</strong>
+                    <small>{formatCurrency(finance.aging.d61plus.amount)}</small>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <section className="finance-actions-card">
+              <div className="finance-actions-head">
+                <h3>Finance Actions</h3>
+                <span>Mark dues paid or snooze reminders directly from here.</span>
+              </div>
+              {financeActionNotice && <p className="finance-action-notice">{financeActionNotice}</p>}
+
+              {financeActionRows.length === 0 ? (
+                <p className="finance-empty">No actionable dues right now.</p>
+              ) : (
+                <div className="finance-actions-list">
+                  {financeActionRows.map((item) => {
+                    const payLoading = financeActionLoadingId === `${item.id}:PAID`;
+                    const snoozeLoading = financeActionLoadingId === `${item.id}:SNOOZE`;
+
+                    return (
+                      <article key={item.id} className="finance-action-row">
+                        <div className="finance-action-main">
+                          <h4>{item.title}</h4>
+                          <p>
+                            {formatCurrency(item.amount)} • Due {formatDate(item.dueDate)}
+                            {item.snoozeDate ? ` • Snoozed until ${formatDate(item.snoozeDate)}` : ''}
+                          </p>
+                        </div>
+                        <div className="finance-action-right">
+                          <span className={`finance-row-status ${item.status === 'OVERDUE' ? 'overdue' : 'pending'}`}>
+                            {item.status}
+                          </span>
+                          <button
+                            type="button"
+                            className="finance-inline-btn paid"
+                            onClick={() => performFinanceDueAction(item.id, 'PAID')}
+                            disabled={Boolean(financeActionLoadingId)}
+                          >
+                            {payLoading ? 'Saving...' : 'Mark Paid'}
+                          </button>
+                          <button
+                            type="button"
+                            className="finance-inline-btn snooze"
+                            onClick={() => performFinanceDueAction(item.id, 'SNOOZE')}
+                            disabled={Boolean(financeActionLoadingId)}
+                          >
+                            {snoozeLoading ? 'Saving...' : 'Snooze +7d'}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <div className="finance-bottom-card">
+              <div className="finance-bottom-tabs">
+                <button
+                  type="button"
+                  className={`finance-tab-btn ${financeBottomTab === 'paymentMethods' ? 'active' : ''}`}
+                  onClick={() => setFinanceBottomTab('paymentMethods')}
+                >
+                  Payment Methods
+                </button>
+                <button
+                  type="button"
+                  className={`finance-tab-btn ${financeBottomTab === 'recentTransactions' ? 'active' : ''}`}
+                  onClick={() => setFinanceBottomTab('recentTransactions')}
+                >
+                  Recent Transactions
+                </button>
+              </div>
+
+              {financeBottomTab === 'paymentMethods' ? (
+                <div className="payment-methods-list">
+                  {finance.paymentMethods.map((method) => (
+                    <article key={method.id} className="payment-method-item">
+                      <div>
+                        <h4>{method.name}</h4>
+                        <p>{method.note}</p>
+                      </div>
+                      <div className="payment-method-actions">
+                        <span className={`method-status ${method.status === 'Not Connected' ? 'pending' : 'ready'}`}>{method.status}</span>
+                        <button type="button">Configure</button>
+                      </div>
+                    </article>
+                  ))}
+                  <div className="integration-note">
+                    Integration-ready: configure provider keys, webhooks, and payout settings when payment gateway is enabled.
+                  </div>
+                </div>
+              ) : (
+                <div className="transactions-list">
+                  {finance.recentTransactions.length === 0 ? (
+                    <p className="finance-empty">No paid transactions yet.</p>
+                  ) : (
+                    finance.recentTransactions.map((txn) => (
+                      <article key={txn.id} className="transaction-item">
+                        <div>
+                          <h4>{txn.title}</h4>
+                          <p>{txn.paidAt ? txn.paidAt.toLocaleString() : 'Date unavailable'}</p>
+                        </div>
+                        <div className="transaction-right">
+                          <strong>{formatCurrency(txn.amount)}</strong>
+                          <span>{txn.method} • {txn.reference}</span>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : activeTab === 'analytics' ? (
           <div className="analytics-dashboard">
             <div className="analytics-head">
               <h2>Analytics</h2>
@@ -1032,6 +1423,11 @@ function VoiceChat({ onLogout, profile }) {
                 )}
               </section>
             </div>
+          </div>
+        ) : activeTab === 'intellige' ? (
+          <div className="tab-placeholder">
+            <h2>Intellige</h2>
+            <p>Soon to be released.</p>
           </div>
         ) : activeTab !== 'conversations' ? (
           <div className="tab-placeholder">
