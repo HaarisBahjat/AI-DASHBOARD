@@ -1,23 +1,17 @@
-import React, { lazy, Suspense, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
-const HomePage = lazy(() => import('./pages/HomePage'));
-const FeaturesPage = lazy(() => import('./pages/FeaturesPage'));
-const PricingPage = lazy(() => import('./pages/PricingPage'));
-const AboutPage = lazy(() => import('./pages/AboutPage'));
-const LoginForm = lazy(() => import('./LoginForm'));
-const SignupForm = lazy(() => import('./SignupForm'));
-const VoiceChat = lazy(() => import('./VoiceChat'));
-const VoiceAssistant = lazy(() => import('./VoiceAssistant'));
-import './App.css';
+// Marketing pages
+import HomePage     from './pages/HomePage';
+import FeaturesPage from './pages/FeaturesPage';
+import PricingPage  from './pages/PricingPage';
+import AboutPage    from './pages/AboutPage';
 
-function RouteLoader() {
-  return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#040810', color: '#a8c0e8' }}>
-      Loading...
-    </div>
-  );
-}
+// App pages
+import LoginForm      from './LoginForm';
+import VoiceChat      from './VoiceChat';
+import VoiceAssistant from './VoiceAssistant';
+import './App.css';
 
 // ── Auth guard ───────────────────────────────────────────
 function ProtectedRoute({ children }) {
@@ -103,18 +97,15 @@ function DashboardShell() {
 export default function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<RouteLoader />}>
-        <Routes>
-          <Route path="/"         element={<PublicRoute><HomePage /></PublicRoute>} />
-          <Route path="/features" element={<FeaturesPage />} />
-          <Route path="/pricing"  element={<PricingPage />} />
-          <Route path="/about"    element={<AboutPage />} />
-          <Route path="/login"    element={<PublicRoute><LoginForm /></PublicRoute>} />
-          <Route path="/signup"   element={<PublicRoute><SignupForm /></PublicRoute>} />
-          <Route path="/dashboard" element={<ProtectedRoute><DashboardShell /></ProtectedRoute>} />
-          <Route path="*"         element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
+      <Routes>
+        <Route path="/"         element={<PublicRoute><HomePage /></PublicRoute>} />
+        <Route path="/features" element={<FeaturesPage />} />
+        <Route path="/pricing"  element={<PricingPage />} />
+        <Route path="/about"    element={<AboutPage />} />
+        <Route path="/login"    element={<PublicRoute><LoginForm /></PublicRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><DashboardShell /></ProtectedRoute>} />
+        <Route path="*"         element={<Navigate to="/" replace />} />
+      </Routes>
     </BrowserRouter>
   );
 }

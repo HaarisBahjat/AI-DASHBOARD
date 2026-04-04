@@ -8,10 +8,9 @@
   justify-content: center;
   padding: 24px;
   background:
-    radial-gradient(ellipse 600px 400px at 50% 20%, rgba(29,78,216,0.16) 0%, transparent 60%),
-    radial-gradient(ellipse 400px 300px at 80% 80%, rgba(45,212,191,0.08) 0%, transparent 55%),
-    linear-gradient(180deg, rgba(4,8,16,0.56) 0%, rgba(6,13,28,0.42) 100%);
-  backdrop-filter: blur(18px);
+    radial-gradient(ellipse 600px 400px at 50% 20%, rgba(29,78,216,0.14) 0%, transparent 60%),
+    radial-gradient(ellipse 400px 300px at 80% 80%, rgba(13,148,136,0.06) 0%, transparent 55%),
+    #040810;
   font-family: 'DM Sans', sans-serif;
 }
 
@@ -19,8 +18,8 @@
   position: relative;
   z-index: 1;
   width: min(480px, 100%);
-  background: linear-gradient(180deg, rgba(15,30,56,0.86) 0%, rgba(10,21,40,0.78) 100%);
-  border: 1px solid rgba(79,142,247,0.18);
+  background: linear-gradient(180deg, #0f1e38 0%, #0a1528 100%);
+  border: 1px solid rgba(79,142,247,0.14);
   border-radius: 22px;
   padding: 36px;
   box-shadow:
@@ -172,8 +171,4 @@
   font-size: 12.5px;
   font-family: 'DM Mono', monospace;
   color: #8da8ce;
-}
-
-.login-creds p a:hover {
-  text-decoration: underline;
 }
