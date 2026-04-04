@@ -55,11 +55,6 @@ const LoginForm = () => {
           <p>Email: test@example.com</p>
           <p>Password: test123</p>
         </div>
-
-        <div className="login-creds" style={{ marginTop: 14 }}>
-          <h4>New here?</h4>
-          <p><Link to="/signup" style={{ color: '#7aacf8', textDecoration: 'none' }}>Create your account</Link></p>
-        </div>
       </div>
     </div>
   );
