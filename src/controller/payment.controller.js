@@ -1,23 +1,25 @@
-const {createOrder} = require('../Service/payment.service');
-const due= require("../models/db").Dues;
+const { createOrder } = require('../Service/payment.service');
+const { Dues } = require("../models/db");
 
-exports.createPaymentOrder=async (req,res)=>{
-    try{
-        const {dueId}=req.body;
-        const due= await due.findById(dueId);
-        if(!due){
-            return res.status(404).json({message:"Due not found"});
+exports.createPaymentOrder = async (req, res) => {
+    try {
+        const { dueId } = req.body;
+        const due = await Dues.findById(dueId);
+        if (!due) {
+            return res.status(404).json({ message: 'Due not found' });
         }
-        const order=await createOrder({amount: due.amount, receipt: `receipt_${dueId}`});
 
-         res.json({
-      orderId: order.id,
-      amount: order.amount,
-      currency: order.currency,
-      dueId: due._id
-    });
+        // Create Razorpay order (amount passed in rupees)
+        const order = await createOrder(due.amount, 'INR', `receipt_${dueId}`);
+
+        return res.json({
+            orderId: order.id,
+            amount: order.amount,
+            currency: order.currency,
+            dueId: due._id,
+        });
     } catch (error) {
-        return res.status(500).json({message:"Error creating payment order"});
-
+        console.error('createPaymentOrder error:', error);
+        return res.status(500).json({ message: 'Error creating payment order', error: error.message });
     }
-}
+};
