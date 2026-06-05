@@ -14,7 +14,7 @@ const SignupForm = () => {
     e.preventDefault();
 
     if (password !== confirmPassword) {
-      alert('❌ Passwords do not match');
+      alert('Passwords do not match');
       return;
     }
 
@@ -28,13 +28,13 @@ const SignupForm = () => {
 
       const data = await response.json();
       if (response.ok) {
-        alert('✅ Account created successfully. Please sign in.');
+        alert('Account created successfully. Please sign in.');
         navigate('/login', { replace: true });
       } else {
-        alert(`❌ Signup failed: ${data.message}`);
+        alert(`Signup failed: ${data.message}`);
       }
     } catch (error) {
-      alert(`❌ Network error: ${error.message}`);
+      alert(`Network error: ${error.message}`);
     } finally {
       setIsLoading(false);
     }

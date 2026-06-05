@@ -23,10 +23,10 @@ const LoginForm = () => {
         localStorage.setItem('userId', data.user._id);
         navigate('/dashboard', { replace: true });
       } else {
-        alert(`❌ Login failed: ${data.message}`);
+        alert(`Login failed: ${data.message}`);
       }
     } catch (error) {
-      alert(`❌ Network error: ${error.message}`);
+      alert(`Network error: ${error.message}`);
     } finally {
       setIsLoading(false);
     }

@@ -429,13 +429,13 @@ export default function AboutPage() {
           </div>
 
           <div className="ap-story-aside">
-            {[
-              ['🏠', 'Where it started', 'A housing society treasurer chasing 8 residents across WhatsApp for 3 months straight.'],
-              ['🤖', 'The "what if" moment', '"What if AI just... called them?" That question started everything.'],
-              ['📈', 'What it became', 'A full-stack AI voice platform that handles reminders, disputes, snoozes, and analytics — automatically.'],
-            ].map(([icon, title, desc], i) => (
+              {[
+                ['', 'Where it started', 'A housing society treasurer chasing 8 residents across WhatsApp for 3 months straight.'],
+                ['', 'The "what if" moment', '"What if AI just... called them?" That question started everything.'],
+                ['', 'What it became', 'A full-stack AI voice platform that handles reminders, disputes, snoozes, and analytics — automatically.'],
+              ].map(([icon, title, desc], i) => (
               <div className={`ap-aside-card mk-reveal mk-reveal-delay-${i + 1}`} key={i}>
-                <div className="ap-aside-card-icon">{icon}</div>
+                    <div className="ap-aside-card-icon"></div>
                 <h4>{title}</h4>
                 <p>{desc}</p>
               </div>
@@ -455,7 +455,7 @@ export default function AboutPage() {
 
         <div className="ap-mv-grid">
           <div className="ap-mv-card mission mk-reveal mk-reveal-left mk-reveal-delay-1">
-            <div className="ap-mv-label">🎯 Mission</div>
+            <div className="ap-mv-label">Mission</div>
             <h2>Eliminate manual payment follow-ups for every business in India.</h2>
             <p>
               We believe that no business owner should spend hours chasing payments that
@@ -467,7 +467,7 @@ export default function AboutPage() {
           </div>
 
           <div className="ap-mv-card vision mk-reveal mk-reveal-right mk-reveal-delay-2">
-            <div className="ap-mv-label" style={{ color: '#2dd4bf' }}>🔭 Vision</div>
+            <div className="ap-mv-label" style={{ color: '#2dd4bf' }}>Vision</div>
             <h2>A world where cash flow is never held hostage by a missed call.</h2>
             <p>
               In 5 years, we want ConvDash to be the default infrastructure for how
@@ -490,13 +490,13 @@ export default function AboutPage() {
         </div>
 
         <div className="ap-timeline-track">
-          {[
-            ['🏠', 'Jan 2026', 'The Problem Discovered', 'A housing society treasurer spends 3 months chasing 8 people for maintenance dues. The pain was real. The idea was born.'],
-            ['💡', 'Feb 2026', 'First Prototype', 'Built a basic voice reminder loop over a weekend — Whisper for STT, Gemini for intent, a janky TTS. It worked well enough to get excited.'],
-            ['🏗️', 'Mar 2026', 'Core Platform Built', 'Full-stack app: auth, dues CRUD, conversation system, voice pipeline, real-time socket updates, analytics. Messy but functional.'],
-            ['🎨', 'Apr 2026', 'Product Polish', 'Redesigned the full UI — dark navy theme, bill-threaded conversations, Finance tab, analytics charts. Started building the marketing site.'],
-            ['🚀', 'Q3 2026', 'Beta Launch (Target)', 'Public beta for 100 businesses. WhatsApp channel integration. Payment gateway webhooks. Regional language support.'],
-            ['🌍', 'Q4 2026', 'Scale (Target)', 'Multi-tenant SaaS launch, enterprise plans, team features, campaign automation for collection agencies.'],
+            {[
+            ['', 'Jan 2026', 'The Problem Discovered', 'A housing society treasurer spends 3 months chasing 8 people for maintenance dues. The pain was real. The idea was born.'],
+            ['', 'Feb 2026', 'First Prototype', 'Built a basic voice reminder loop over a weekend — Whisper for STT, Gemini for intent, a janky TTS. It worked well enough to get excited.'],
+            ['', 'Mar 2026', 'Core Platform Built', 'Full-stack app: auth, dues CRUD, conversation system, voice pipeline, real-time socket updates, analytics. Messy but functional.'],
+            ['', 'Apr 2026', 'Product Polish', 'Redesigned the full UI — dark navy theme, bill-threaded conversations, Finance tab, analytics charts. Started building the marketing site.'],
+            ['', 'Q3 2026', 'Beta Launch (Target)', 'Public beta for 100 businesses. WhatsApp channel integration. Payment gateway webhooks. Regional language support.'],
+            ['', 'Q4 2026', 'Scale (Target)', 'Multi-tenant SaaS launch, enterprise plans, team features, campaign automation for collection agencies.'],
           ].map(([icon, date, title, desc], i) => (
             <div className={`ap-tl-item mk-reveal mk-reveal-delay-${(i % 3) + 1}`} key={i}>
               <div className="ap-tl-dot">{icon}</div>
@@ -586,7 +586,7 @@ export default function AboutPage() {
               <h4>{item.title}</h4>
               <p>{item.desc}</p>
               <div className={`ap-future-tag ${item.tag}`}>
-                {item.tag === 'shipped' ? '✓ Shipped' : item.tag === 'building' ? '⚡ Building' : '🗓 Planned'}
+                    {item.tag === 'shipped' ? 'Shipped' : item.tag === 'building' ? 'Building' : 'Planned'}
               </div>
             </div>
           ))}
@@ -610,12 +610,12 @@ export default function AboutPage() {
                 Try ConvDash Free →
               </Link>
               <a
-                href="mailto:support@convdash.ai"
-                className="mk-btn-ghost"
-                style={{ fontSize: 15, padding: '12px 24px' }}
-              >
-                ✉ Contact the Founder
-              </a>
+                  href="mailto:support@convdash.ai"
+                  className="mk-btn-ghost"
+                  style={{ fontSize: 15, padding: '12px 24px' }}
+                >
+                  Contact the Founder
+                </a>
             </div>
           </div>
         </div>

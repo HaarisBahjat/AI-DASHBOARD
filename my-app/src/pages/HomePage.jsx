@@ -220,7 +220,7 @@ const homeStyles = `
   }
 
   .hp-proof-item::before {
-    content: '✦';
+    content: '';
     color: var(--mk-blue);
     font-size: 10px;
   }
@@ -586,13 +586,13 @@ export default function HomePage() {
             </h2>
             <div className="hp-pain-list">
               {[
-                ['😤', 'Hours spent on phone calls that go unanswered'],
-                ['📋', 'Spreadsheets full of overdue dues with no action plan'],
-                ['🤦', 'Forgetting who you called and what was agreed'],
-                ['💸', 'Late payments snowballing into cash flow crises'],
+                ['', 'Hours spent on phone calls that go unanswered'],
+                ['', 'Spreadsheets full of overdue dues with no action plan'],
+                ['', 'Forgetting who you called and what was agreed'],
+                ['', 'Late payments snowballing into cash flow crises'],
               ].map(([icon, text], i) => (
                 <div className={`hp-pain-item mk-reveal mk-reveal-delay-${i + 1}`} key={i}>
-                  <span className="hp-pain-item-icon">{icon}</span>
+                  <span className="hp-pain-item-icon"></span>
                   <p>{text}</p>
                 </div>
               ))}
@@ -607,13 +607,13 @@ export default function HomePage() {
             </h2>
             <div className="hp-sol-list">
               {[
-                ['🎙️', 'AI voice assistant calls and speaks in the user\'s language'],
-                ['📊', 'Real-time dashboard tracks every due, every reminder'],
-                ['🤖', 'Automatic smart reminders — voice, text, multi-channel'],
-                ['⚡', 'Snooze, pay, or dismiss — one click or one word'],
+                ['', 'AI voice assistant calls and speaks in the user\'s language'],
+                ['', 'Real-time dashboard tracks every due, every reminder'],
+                ['', 'Automatic smart reminders — voice, text, multi-channel'],
+                ['', 'Snooze, pay, or dismiss — one click or one word'],
               ].map(([icon, text], i) => (
                 <div className={`hp-sol-item mk-reveal mk-reveal-delay-${i + 1}`} key={i}>
-                  <span className="hp-sol-item-icon">{icon}</span>
+                  <span className="hp-sol-item-icon"></span>
                   <p>{text}</p>
                 </div>
               ))}
@@ -698,15 +698,15 @@ export default function HomePage() {
 
         <div className="hp-feat-grid">
           {[
-            ['🎙️', 'Voice-First AI', 'Conversational voice reminders in natural language. Customers respond by speaking, not typing forms.'],
-            ['⚡', 'Real-Time Dashboard', 'See every due, every reminder, every outcome — live. No refresh required.'],
-            ['🔁', 'Smart Automation', 'Reminder rules, escalation paths, snooze handling — all automated based on customer responses.'],
-            ['📊', 'Analytics Built In', 'Track recovery rates, payment delays, and cash flow trends without a separate BI tool.'],
-            ['🔒', 'Secure by Design', 'JWT auth, encrypted storage, role-based access. Your data never leaves your account.'],
-            ['🌐', 'Multi-Channel Ready', 'Voice today. WhatsApp, SMS, and email coming. One platform, every channel.'],
+            ['', 'Voice-First AI', 'Conversational voice reminders in natural language. Customers respond by speaking, not typing forms.'],
+            ['', 'Real-Time Dashboard', 'See every due, every reminder, every outcome — live. No refresh required.'],
+            ['', 'Smart Automation', 'Reminder rules, escalation paths, snooze handling — all automated based on customer responses.'],
+            ['', 'Analytics Built In', 'Track recovery rates, payment delays, and cash flow trends without a separate BI tool.'],
+            ['', 'Secure by Design', 'JWT auth, encrypted storage, role-based access. Your data never leaves your account.'],
+            ['', 'Multi-Channel Ready', 'Voice today. WhatsApp, SMS, and email coming. One platform, every channel.'],
           ].map(([icon, title, desc], i) => (
             <div className={`hp-feat-card mk-reveal mk-reveal-delay-${(i % 3) + 1}`} key={i}>
-              <span className="hp-feat-icon">{icon}</span>
+              <span className="hp-feat-icon"></span>
               <h3>{title}</h3>
               <p>{desc}</p>
             </div>
@@ -737,7 +737,7 @@ export default function HomePage() {
             },
           ].map((t, i) => (
             <div className={`hp-test-card mk-reveal mk-reveal-delay-${i + 1}`} key={i}>
-              <div className="hp-test-stars">★★★★★</div>
+              <div className="hp-test-stars">5/5</div>
               <p className="hp-test-quote">"{t.quote}"</p>
               <div className="hp-test-author">
                 <div className="hp-test-avatar">{t.initials}</div>

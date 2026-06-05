@@ -200,11 +200,33 @@ const conversationMessageSchema = new mongoose.Schema({
     }
 },{ timestamps: true });
 
+// Payment records for audit, idempotency, and reconciliation with Razorpay
+const paymentSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false,
+  },
+  dueId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Dues',
+    required: false,
+  },
+  orderId: { type: String, required: true, index: true },
+  paymentId: { type: String, required: true, unique: true, index: true },
+  signature: { type: String },
+  amount: { type: Number },
+  currency: { type: String },
+  status: { type: String, enum: ['CREATED', 'CAPTURED', 'FAILED'], default: 'CREATED' },
+  rawEvent: { type: Object },
+}, { timestamps: true });
+
 const User = mongoose.model("User", userSchema);
 const Dues = mongoose.model("Dues", duesSchema);
 const Conversation = mongoose.model("Conversation", conversationMessageSchema);
 const Reminder = mongoose.model("Reminder", reminderSchema);
 const ConversationSession = mongoose.model("ConversationSession", conversationSessionSchema);
+const Payment = mongoose.model('Payment', paymentSchema);
 
 module.exports = {
   User,
@@ -212,4 +234,5 @@ module.exports = {
   Conversation,
   Reminder,
   ConversationSession
+  ,Payment
 };

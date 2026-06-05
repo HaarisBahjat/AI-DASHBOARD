@@ -396,7 +396,7 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
             </div>
 
             <div className="assistant-metrics">
-                <span>Session {conversationId ? '✓' : '—'}</span>
+                <span>Session {conversationId ? 'Active' : 'Inactive'}</span>
                 <span>Messages {messages.length}</span>
                 <span>Conversations {conversationList.length}</span>
             </div>

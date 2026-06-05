@@ -1,34 +1,35 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Outfit:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
 
 :root {
-  --font-body: 'DM Sans', sans-serif;
-  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-heading: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 
-  --bg: #080c14;
-  --s0: #0c1220;
-  --s1: #101828;
-  --s2: #162035;
-  --s3: #1c2a42;
+  --bg: #131313;
+  --s0: #1c1b1b;
+  --s1: #201f1f;
+  --s2: #2a2a2a;
+  --s3: #353534;
 
-  --border: rgba(255, 255, 255, 0.07);
-  --border-mid: rgba(255, 255, 255, 0.11);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-mid: rgba(255, 255, 255, 0.12);
 
-  --fg: #eef2fb;
-  --body: #c8d8f0;
-  --muted: #7a90b3;
-  --subtle: #4a617f;
-  --sub-label: #3d5068;
-  --ghost: #2d3f58;
+  --fg: #e5e2e1;
+  --body: #c1c6d7;
+  --muted: #8b90a0;
+  --subtle: #6f7585;
+  --sub-label: #4d5565;
+  --ghost: #3a4050;
 
-  --blue: #4f8ef7;
-  --blue-text: #7aacf8;
-  --blue-dim: rgba(79, 142, 247, 0.14);
-  --blue-glow: rgba(79, 142, 247, 0.28);
+  --blue: #4b8eff;
+  --blue-text: #adc6ff;
+  --blue-dim: rgba(75, 142, 255, 0.14);
+  --blue-glow: rgba(75, 142, 255, 0.28);
   --teal: #2dd4bf;
   --amber: #fbbf24;
   --rose: #f87171;
   --green: #34d399;
-  --danger-dark: #c0404a;
+  --danger-dark: #d15c68;
 
   /* Legacy aliases kept for existing components */
   --background: var(--bg);
@@ -49,6 +50,8 @@ body {
   font-family: var(--font-body);
   color: var(--fg);
   background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 html,
@@ -72,8 +75,9 @@ h6 {
 }
 
 h1 {
-  font-size: 30px;
+  font-size: 32px;
   line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 
 #root {

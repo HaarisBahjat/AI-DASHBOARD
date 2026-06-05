@@ -447,7 +447,7 @@ export default function PricingPage() {
               <div className="pp-feature-list">
                 {plan.features.map(([yes, label], j) => (
                   <div key={j} className={`pp-feature${yes ? '' : ' disabled'}`}>
-                    <span className={yes ? 'pp-feature-check' : 'pp-feature-x'}>{yes ? '✓' : '✗'}</span>
+                    <span className={yes ? 'pp-feature-check' : 'pp-feature-x'}>{yes ? 'Yes' : 'No'}</span>
                     {label}
                   </div>
                 ))}
@@ -499,26 +499,26 @@ export default function PricingPage() {
             ['Active dues',          '25',     '500',    'Unlimited'],
             ['Voice reminders/mo',   '50',     '∞',      '∞'],
             ['Reminder types',       '3',      '5+',     'Custom'],
-            ['Snooze & escalation',  '✓',      '✓',      '✓'],
+            ['Snooze & escalation',  'Yes',      'Yes',      'Yes'],
             { section: 'Analytics' },
-            ['Basic analytics',      '✓',      '✓',      '✓'],
-            ['Payment delay tracking','✗',     '✓',      '✓'],
-            ['Collection rate chart', '✗',     '✓',      '✓'],
-            ['Export CSV/PDF',        '✗',     '✓',      '✓'],
+            ['Basic analytics',      'Yes',      'Yes',      'Yes'],
+            ['Payment delay tracking','No',     'Yes',      'Yes'],
+            ['Collection rate chart', 'No',     'Yes',      'Yes'],
+            ['Export CSV/PDF',        'No',     'Yes',      'Yes'],
             { section: 'Integrations' },
-            ['Razorpay / Stripe',    '✗',      'Coming', '✓'],
-            ['Webhook support',      '✗',      '✗',      '✓'],
-            ['API access',           '✗',      '✗',      '✓'],
+            ['Razorpay / Stripe',    'No',      'Coming', 'Yes'],
+            ['Webhook support',      'No',      'No',      'Yes'],
+            ['API access',           'No',      'No',      'Yes'],
             { section: 'Support' },
-            ['Email support',        '✗',      '✓',      '✓'],
-            ['Priority support',     '✗',      '✗',      '✓'],
-            ['Dedicated manager',    '✗',      '✗',      '✓'],
+            ['Email support',        'No',      'Yes',      'Yes'],
+            ['Priority support',     'No',      'No',      'Yes'],
+            ['Dedicated manager',    'No',      'No',      'Yes'],
           ].map((row, i) => {
             if (row.section) {
               return <div key={i} className="pp-table-section-head">{row.section}</div>;
             }
             const [feat, s, g, sc] = row;
-            const cls = (v) => v === '✓' ? 'yes' : v === '✗' ? 'no' : '';
+            const cls = (v) => v === 'Yes' ? 'yes' : v === 'No' ? 'no' : '';
             return (
               <div key={i} className="pp-table-row">
                 <div className="pp-table-feat">{feat}</div>

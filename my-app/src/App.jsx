@@ -13,7 +13,7 @@ import './App.css';
 
 function RouteLoader() {
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#040810', color: '#a8c0e8' }}>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg)', color: 'var(--body)' }}>
       Loading...
     </div>
   );

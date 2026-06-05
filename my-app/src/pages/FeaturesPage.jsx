@@ -500,7 +500,7 @@ export default function FeaturesPage() {
           <div className="fp-pipeline-title">Complete Voice Pipeline — under 2 seconds end-to-end</div>
           <div className="fp-pipeline-steps">
             {[
-              { box: '🎤\nMic Input', cls: 'mic', label: 'User speaks' },
+              { box: 'Mic\nInput', cls: 'mic', label: 'User speaks' },
               null,
               { box: 'ASR\nWhisper', cls: 'stt', label: 'Speech → Text' },
               null,
@@ -508,7 +508,7 @@ export default function FeaturesPage() {
               null,
               { box: 'TTS\nVoice', cls: 'tts', label: 'Text → Audio' },
               null,
-              { box: '🔊\nPlayback', cls: 'speaker', label: 'User hears reply' },
+              { box: 'Playback', cls: 'speaker', label: 'User hears reply' },
             ].map((item, i) => {
               if (item === null) return <div key={i} className="fp-pipeline-arrow">→</div>;
               return (
@@ -568,10 +568,10 @@ export default function FeaturesPage() {
             {/* Explanation points */}
             <div className="fp-conv-points">
               {[
-                ['💬', 'Bill-Threaded Conversations', 'Every bill gets its own chat thread. Multiple reminder sessions for the same bill merge into one continuous conversation — like WhatsApp threads, but for payments.'],
-                ['📅', 'Date-Grouped Messages', 'Messages are stacked by day inside each bill thread. A new reminder session on April 6 appears below the April 5 session — with a clear date separator.'],
-                ['🔑', 'Bill Identity, Not Title', 'Two bills with the same name ("Electricity Bill") never merge accidentally. Each thread is keyed to a unique bill ID, not just the title text.'],
-                ['⚡', 'Optimistic UI Updates', 'When you speak a command, the message appears instantly — before the server confirms. No waiting, no refreshing.'],
+                ['', 'Bill-Threaded Conversations', 'Each bill gets its own chat thread.'],
+                ['', 'Date-Grouped Messages', 'Messages are grouped by date inside threads.'],
+                ['', 'Bill Identity', 'Each thread is tied to a unique bill ID.'],
+                ['', 'Optimistic UI', 'UI updates immediately on command.'],
               ].map(([icon, title, desc], i) => (
                 <div className={`fp-conv-point mk-reveal mk-reveal-delay-${i + 1}`} key={i}>
                   <div className="fp-conv-point-icon">{icon}</div>
@@ -597,12 +597,12 @@ export default function FeaturesPage() {
 
         <div className="fp-usp-grid">
           {[
-            ['🎙️', 'Voice-First Reminder Automation', 'Most collection tools send SMS or email. We call. AI voice reminders have 3× higher response rates because people actually pick up and respond to a voice they can reply to.'],
-            ['🧵', 'WhatsApp-Style Bill Threading', 'Every bill becomes a conversation thread with full history. No more disconnected reminder logs. Understand the complete journey of every payment in one view.'],
-            ['🌙', 'Midnight-Boundary Daily Sessions', 'Same bill, same day = same conversation. Cross midnight = fresh session, same context. You never lose continuity, and the UI never becomes cluttered.'],
-            ['📡', 'Realtime Push Without Refresh', 'Socket-powered live updates. When AI sends a reminder at 9 AM, it appears in your dashboard instantly — no page reload, no polling, no delay.'],
-            ['🔁', 'Graceful Degradation', 'If voice synthesis goes down, text still works. If speech recognition fails, the conversation records the error and continues. The system never goes fully silent.'],
-            ['🛡️', 'Privacy-First Architecture', 'ASR runs locally. Audio never leaves your server. JWT-authenticated APIs. Role-based access. GDPR-ready by design.'],
+            ['', 'Voice-First Reminder Automation', 'Most collection tools send SMS or email. We call. AI voice reminders have higher response rates because people actually pick up and respond to a voice they can reply to.'],
+            ['', 'WhatsApp-Style Bill Threading', 'Every bill becomes a conversation thread with full history. No more disconnected reminder logs. Understand the complete journey of every payment in one view.'],
+            ['', 'Midnight-Boundary Daily Sessions', 'Same bill, same day = same conversation. Cross midnight = fresh session, same context. You never lose continuity, and the UI never becomes cluttered.'],
+            ['', 'Realtime Push Without Refresh', 'Socket-powered live updates. When AI sends a reminder at 9 AM, it appears in your dashboard instantly — no page reload, no polling, no delay.'],
+            ['', 'Graceful Degradation', 'If voice synthesis goes down, text still works. If speech recognition fails, the conversation records the error and continues. The system never goes fully silent.'],
+            ['', 'Privacy-First Architecture', 'ASR runs locally. Audio never leaves your server. JWT-authenticated APIs. Role-based access. GDPR-ready by design.'],
           ].map(([icon, title, desc], i) => (
             <div className={`fp-usp-card mk-reveal mk-reveal-delay-${(i % 2) + 1}`} key={i}>
               <div className="fp-usp-icon-wrap">{icon}</div>
@@ -630,20 +630,20 @@ export default function FeaturesPage() {
           </div>
 
           {[
-            ['AI voice reminders',             '✓ Yes',       '✗ No'],
-            ['Conversational response (speak)', '✓ Yes',       '✗ No'],
-            ['Bill-threaded chat history',      '✓ Yes',       '✗ No'],
-            ['Real-time dashboard',             '✓ Yes',       '~ Partial'],
-            ['Automated overdue detection',     '✓ Yes',       '✗ No'],
-            ['Snooze / escalation logic',       '✓ Yes',       '✗ No'],
-            ['Analytics & delay tracking',      '✓ Yes',       '~ Partial'],
-            ['Multi-channel (voice + text)',    '~ Coming Q3', '~ SMS only'],
-            ['Local ASR (no cloud audio)',      '✓ Yes',       'N/A'],
+            ['AI voice reminders',             'Yes',       'No'],
+            ['Conversational response (speak)', 'Yes',       'No'],
+            ['Bill-threaded chat history',      'Yes',       'No'],
+            ['Real-time dashboard',             'Yes',       'Partial'],
+            ['Automated overdue detection',     'Yes',       'No'],
+            ['Snooze / escalation logic',       'Yes',       'No'],
+            ['Analytics & delay tracking',      'Yes',       'Partial'],
+            ['Multi-channel (voice + text)',    'Coming Q3', 'SMS only'],
+            ['Local ASR (no cloud audio)',      'Yes',       'N/A'],
           ].map(([feat, ours, theirs], i) => (
             <div key={i} className="fp-compare-row">
               <div className="fp-compare-feature">{feat}</div>
-              <div className={`fp-compare-cell ${ours.startsWith('✓') ? 'yes' : ours.startsWith('✗') ? 'no' : 'partial'}`}>{ours}</div>
-              <div className={`fp-compare-cell ${theirs.startsWith('✓') ? 'yes' : theirs.startsWith('✗') ? 'no' : 'partial'}`}>{theirs}</div>
+              <div className={`fp-compare-cell ${ours === 'Yes' ? 'yes' : ours === 'No' ? 'no' : 'partial'}`}>{ours}</div>
+              <div className={`fp-compare-cell ${theirs === 'Yes' ? 'yes' : theirs === 'No' ? 'no' : 'partial'}`}>{theirs}</div>
             </div>
           ))}
         </div>

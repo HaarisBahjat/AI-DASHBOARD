@@ -1039,6 +1039,112 @@ function VoiceChat({ onLogout, profile }) {
     }
   };
 
+  /**
+   * Load Razorpay Checkout script dynamically when needed.
+   * Returns a promise that resolves when the script is available as `window.Razorpay`.
+   */
+  const loadRazorpayScript = () => new Promise((resolve, reject) => {
+    if (window.Razorpay) return resolve(true);
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => reject(new Error('Failed to load Razorpay script'));
+    document.body.appendChild(script);
+  });
+
+  /**
+   * Perform an immediate payment flow for a due:
+   * 1) Call backend `POST /api/payments/create` with `dueId` to obtain `orderId` + `keyId`.
+   * 2) Load Razorpay Checkout script and open Checkout with the returned order.
+   * 3) On successful Checkout, Razorpay calls the `handler` with payment ids — send them to
+   *    backend `POST /api/payments/verify` to validate signature and mark the Due as PAID.
+   * 4) Refresh local state (dues and conversations) after verification.
+   */
+  const performPayNow = async (dueId) => {
+    if (!dueId) return;
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      alert('Please login to make a payment');
+      return;
+    }
+
+    setFinanceActionLoadingId(`${dueId}:PAYNOW`);
+    setFinanceActionNotice('');
+
+    try {
+      // 1) Create order on server
+      const createRes = await fetch('http://localhost:3004/api/payments/create', {
+        method: 'POST',
+        headers: getAuthHeaders(token),
+        body: JSON.stringify({ dueId }),
+      });
+
+      if (!createRes.ok) {
+        const err = await createRes.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to create payment order');
+      }
+
+      const orderData = await createRes.json();
+
+
+      // 2) Load Razorpay script
+      await loadRazorpayScript();
+
+      // 3) Open Checkout
+      const options = {
+        key: orderData.keyId, // public key returned from server
+        amount: orderData.amount, // amount in paise as returned by server
+        currency: orderData.currency,
+        order_id: orderData.orderId,
+        name: 'ConvDash',
+        description: `Pay due ${orderData.dueId}`,
+        handler: async function (response) {
+          try {
+            // 4) Verify payment on server
+            const verifyRes = await fetch('http://localhost:3004/api/payments/verify', {
+              method: 'POST',
+              headers: getAuthHeaders(token),
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                dueId: orderData.dueId,
+              }),
+            });
+
+            if (!verifyRes.ok) {
+              const err = await verifyRes.json().catch(() => ({}));
+              throw new Error(err.message || 'Payment verification failed');
+            }
+
+            // Success: refresh local state so UI reflects paid due
+            await refreshDues(token);
+            await refreshConversations(token);
+            setFinanceActionNotice('Payment successful — due marked PAID.');
+          } catch (err) {
+            alert(`Payment verification error: ${err.message}`);
+          } finally {
+            setFinanceActionLoadingId(null);
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            // User closed the Checkout without paying
+            setFinanceActionLoadingId(null);
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
+    } catch (error) {
+      alert(`Pay Now failed: ${error.message}`);
+      setFinanceActionLoadingId(null);
+    }
+  };
+
   const deleteConversation = async () => {
     if (!activeConversationId) return;
 
@@ -1233,6 +1339,7 @@ function VoiceChat({ onLogout, profile }) {
                   {financeActionRows.map((item) => {
                     const payLoading = financeActionLoadingId === `${item.id}:PAID`;
                     const snoozeLoading = financeActionLoadingId === `${item.id}:SNOOZE`;
+                    const payNowLoading = financeActionLoadingId === `${item.id}:PAYNOW`;
 
                     return (
                       <article key={item.id} className="finance-action-row">
@@ -1254,6 +1361,16 @@ function VoiceChat({ onLogout, profile }) {
                             disabled={Boolean(financeActionLoadingId)}
                           >
                             {payLoading ? 'Saving...' : 'Mark Paid'}
+                          </button>
+
+                          {/* Pay Now button opens Razorpay Checkout and verifies payment */}
+                          <button
+                            type="button"
+                            className="finance-inline-btn paynow"
+                            onClick={() => performPayNow(item.id)}
+                            disabled={Boolean(financeActionLoadingId)}
+                          >
+                            {payNowLoading ? 'Processing...' : 'Pay Now'}
                           </button>
                           <button
                             type="button"
@@ -1519,6 +1636,7 @@ function VoiceChat({ onLogout, profile }) {
                       onTouchEnd={stopRecording}
                       disabled={!isConnected || isLoading || !activeConversationId}
                     >
+                      <span className="record-dot" aria-hidden="true"></span>
                       {isRecording ? 'Recording...' : 'Hold to Record'}
                     </button>
 
@@ -1526,7 +1644,7 @@ function VoiceChat({ onLogout, profile }) {
                       <button className="action-btn paid" onClick={() => completeConversation('PAID')} disabled={!activeConversationId}>Mark Paid</button>
                       <button className="action-btn snooze" onClick={() => completeConversation('SNOOZE')} disabled={!activeConversationId}>Snooze</button>
                       <button className="action-btn dismiss" onClick={() => completeConversation('DISMISSED')} disabled={!activeConversationId}>Dismiss</button>
-                      <button className="action-btn dismiss" onClick={deleteConversation} disabled={!activeConversationId}>Delete</button>
+                      <button className="action-btn delete" onClick={deleteConversation} disabled={!activeConversationId}>Delete</button>
                     </div>
                   </div>
                 </>
