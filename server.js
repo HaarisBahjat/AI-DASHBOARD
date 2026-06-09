@@ -15,6 +15,7 @@ const {Server} = require("socket.io");
 const voiceSocket = require('./src/Sockets/voice.socket');
 const { setIO } = require('./src/Sockets/socketState');
 const PORT = Number(process.env.PORT) || 3004;
+const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
 
 
 
@@ -99,7 +100,11 @@ async function main() {
         process.exit(1);
     });
 
-    await mongoose.connect('mongodb+srv://haarismalick4_db_user:Lz5zswsFfrEAF5r1@cluster88.fozut1k.mongodb.net/dataBase');
+     if (!MONGODB_URI) {
+        throw new Error('Missing MONGODB_URI in environment');
+    }
+
+    await mongoose.connect(MONGODB_URI);
     console.log('Connected to MongoDB');
     
 

@@ -105,12 +105,12 @@ export default function App() {
     <BrowserRouter>
       <Suspense fallback={<RouteLoader />}>
         <Routes>
-          <Route path="/"         element={<PublicRoute><HomePage /></PublicRoute>} />
+          <Route path="/"         element={<HomePage />} />
           <Route path="/features" element={<FeaturesPage />} />
           <Route path="/pricing"  element={<PricingPage />} />
           <Route path="/about"    element={<AboutPage />} />
-          <Route path="/login"    element={<PublicRoute><LoginForm /></PublicRoute>} />
-          <Route path="/signup"   element={<PublicRoute><SignupForm /></PublicRoute>} />
+          <Route path="/login"    element={<LoginForm />} />
+          <Route path="/signup"   element={<SignupForm />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardShell /></ProtectedRoute>} />
           <Route path="*"         element={<Navigate to="/" replace />} />
         </Routes>
