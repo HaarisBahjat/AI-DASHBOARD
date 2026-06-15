@@ -58,6 +58,8 @@ app.use('/api/reminders', reminderRoute);
 app.use('/api/payments', require('./src/routes/payments.route'));
 app.use('/api/reminder-outcomes', require('./src/routes/reminderRead.route'));
 app.use('/api/conversations', require('./src/routes/conversation.routes'));
+// Twilio: outbound voice TwiML + inbound SMS/WhatsApp webhook
+app.use('/api/twilio', require('./src/routes/twilio.route'));
 app.use("/audio", express.static("src/audio"));
 
 

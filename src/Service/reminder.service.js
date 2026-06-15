@@ -2,8 +2,10 @@ const Reminder = require("../models/db").Reminder;
 const ConversationSession = require("../models/db").ConversationSession;
     // This service handles the creation of reminders and associated conversation sessions for dues.
 const Conversation = require("../models/db").Conversation;
+const User = require("../models/db").User;
 const { textToSpeech } = require("./tts.service");
 const { emitToUser } = require("../Sockets/socketState");
+const twilioService = require("./twilio.service");
 const fs = require('fs');
 const path = require('path');
 // Helper function to get start and end of the day for a given date
@@ -126,6 +128,26 @@ exports.createReminder = async ({
     } catch(err) {
         console.error(`Error creating conversation for reminder:`, err.message);
     }
-    
+
+    // ── Twilio: WhatsApp + Voice Call (OVERDUE only) ───────────────────────
+    // Look up the user's phone number from the DB so this service stays
+    // independent of the auth layer. Runs async and never blocks the caller.
+    try {
+        const user = await User.findById(userId).select('phone').lean();
+        if (user && user.phone) {
+            await twilioService.sendDueReminder({
+                phone: user.phone,
+                due,
+                reminderType,
+                userId,
+            });
+        } else {
+            console.log(`[Twilio] No phone on file for user ${userId} — skipping notification.`);
+        }
+    } catch (twilioErr) {
+        // Twilio failure must never break the reminder pipeline.
+        console.error(`[Twilio] Notification failed for reminder ${reminder._id}:`, twilioErr.message);
+    }
+
     return reminder;
 }

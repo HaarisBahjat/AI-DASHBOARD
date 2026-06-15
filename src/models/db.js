@@ -44,6 +44,18 @@ const userSchema = new mongoose.Schema(
 
     lastLoginAt: {
       type: Date
+    },
+
+    // ── Twilio / phone notifications ──────────────────────────────────────
+    // Store in E.164 format e.g. +923001234567
+    phone: {
+      type: String,
+      default: null,
+      trim: true
+    },
+    phoneVerified: {
+      type: Boolean,
+      default: false
     }
   },
   { timestamps: true }
@@ -228,11 +240,44 @@ const Reminder = mongoose.model("Reminder", reminderSchema);
 const ConversationSession = mongoose.model("ConversationSession", conversationSessionSchema);
 const Payment = mongoose.model('Payment', paymentSchema);
 
+// ── CallLog — persists every AI-driven outbound call for audit + dashboard ──
+const callLogSchema = new mongoose.Schema({
+  callSid: { type: String, index: true },       // Twilio Call SID
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  dueId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Dues',
+    required: true
+  },
+  status: {
+    type: String,
+    enum: ['initiated', 'in-progress', 'completed', 'failed', 'no-answer'],
+    default: 'initiated'
+  },
+  duration: { type: Number, default: 0 },       // seconds
+  transcript: { type: String, default: null },   // what the user said
+  llmIntent: {
+    type: String,
+    enum: ['confirm_paid', 'will_pay_today', 'snooze', 'dispute', 'no_response', null],
+    default: null
+  },
+  llmConfidence: { type: String, default: null },
+  snoozeDays: { type: Number, default: null },
+  outcome: { type: String, default: null },      // human-readable result description
+}, { timestamps: true });
+
+const CallLog = mongoose.model('CallLog', callLogSchema);
+
 module.exports = {
   User,
   Dues,
   Conversation,
   Reminder,
-  ConversationSession
-  ,Payment
+  ConversationSession,
+  Payment,
+  CallLog
 };
