@@ -133,6 +133,7 @@ async function saveCallLog({ userId, dueId, turns, intent, snoozeDays, outcome, 
             .join('\n');
 
         // Upsert — if the record was created at call init, update it
+        if (!dueId) return; // Prevent Cast to ObjectId errors
         await CallLog.findOneAndUpdate(
             { userId, dueId, status: { $in: ['initiated', 'in-progress'] } },
             {

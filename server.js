@@ -34,8 +34,9 @@ voiceSocket(io);
 
 module.exports = {io};
 
-// Middleware to parse JSON bodies
+// Middleware to parse JSON bodies and form data (Twilio uses form data)
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(cors({
     origin: (origin, callback) => {

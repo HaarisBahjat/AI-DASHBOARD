@@ -7,6 +7,14 @@ const FROM_SMS     = process.env.TWILIO_FROM_NUMBER;          // +1xxxxxxxxxx
 const FROM_WA      = process.env.TWILIO_WHATSAPP_FROM;        // whatsapp:+14155238886
 const BASE_URL     = process.env.BASE_URL || 'http://localhost:3004'; // public-facing URL for TwiML
 
+// ── Helper for detailed Twilio error logging ───────────────────────────────────────
+function logTwilioError(context, err) {
+    console.error(`[Twilio ${context}] FAILED
+    • Error code: ${err.code || 'N/A'}
+    • Message   : ${err.message}
+    • Hint      : Check Twilio Console for the specific error code.`);
+}
+
 let client = null;
 
 /**
@@ -32,9 +40,14 @@ function getClient() {
  */
 exports.sendSMS = async (to, body) => {
     if (!FROM_SMS) throw new Error('TWILIO_FROM_NUMBER not set in .env');
-    const msg = await getClient().messages.create({ from: FROM_SMS, to, body });
-    console.log(`[Twilio SMS] Sent to ${to} — SID: ${msg.sid}`);
-    return msg;
+    try {
+        const msg = await getClient().messages.create({ from: FROM_SMS, to, body });
+        console.log(`[Twilio SMS] Sent to ${to} — SID: ${msg.sid}`);
+        return msg;
+    } catch (err) {
+        logTwilioError('SMS', err);
+        throw err;
+    }
 };
 
 /**
@@ -44,10 +57,15 @@ exports.sendSMS = async (to, body) => {
  */
 exports.sendWhatsApp = async (to, body) => {
     if (!FROM_WA) throw new Error('TWILIO_WHATSAPP_FROM not set in .env');
-    const waTo = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
-    const msg = await getClient().messages.create({ from: FROM_WA, to: waTo, body });
-    console.log(`[Twilio WhatsApp] Sent to ${to} — SID: ${msg.sid}`);
-    return msg;
+    try {
+        const waTo = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
+        const msg = await getClient().messages.create({ from: FROM_WA, to: waTo, body });
+        console.log(`[Twilio WhatsApp] Sent to ${to} — SID: ${msg.sid}`);
+        return msg;
+    } catch (err) {
+        logTwilioError('WhatsApp', err);
+        throw err;
+    }
 };
 
 /**
@@ -71,17 +89,22 @@ exports.makeVoiceCall = async (to, params = {}) => {
     const twimlUrl       = `${BASE_URL}/api/twilio/voice-twiml?${qs}`;
     const statusCallback = `${BASE_URL}/api/twilio/voice-status`;
 
-    const call = await getClient().calls.create({
-        to,
-        from: FROM_SMS,
-        url:                    twimlUrl,
-        method:                 'GET',
-        statusCallback,
-        statusCallbackMethod:   'POST',
-        statusCallbackEvent:    ['initiated', 'ringing', 'answered', 'completed'],
-    });
-    console.log(`[Twilio Call] Initiated to ${to} — SID: ${call.sid}`);
-    return call;
+    try {
+        const call = await getClient().calls.create({
+            to,
+            from: FROM_SMS,
+            url:                    twimlUrl,
+            method:                 'GET',
+            statusCallback,
+            statusCallbackMethod:   'POST',
+            statusCallbackEvent:    ['initiated', 'ringing', 'answered', 'completed'],
+        });
+        console.log(`[Twilio Call] Initiated to ${to} — SID: ${call.sid}`);
+        return call;
+    } catch (err) {
+        logTwilioError('Voice Call', err);
+        throw err;
+    }
 };
 
 
