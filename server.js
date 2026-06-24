@@ -11,7 +11,7 @@ const reminderCron = require('./src/cron/reminder.cron');
 const reminderRoute = require('./src/routes/reminder.route');
 const http = require('http');
 const net = require('net');
-const {Server} = require("socket.io");
+const { Server } = require("socket.io");
 const voiceSocket = require('./src/Sockets/voice.socket');
 const { setIO } = require('./src/Sockets/socketState');
 const PORT = Number(process.env.PORT) || 3004;
@@ -22,7 +22,7 @@ const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
 
 const app = express();
 
-const server= http.createServer(app);
+const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: "*",
@@ -32,7 +32,7 @@ const io = new Server(server, {
 setIO(io);
 voiceSocket(io);
 
-module.exports = {io};
+module.exports = { io };
 
 // Middleware to parse JSON bodies and form data (Twilio uses form data)
 app.use(express.json());
@@ -43,12 +43,12 @@ app.use(cors({
         callback(null, true); // allow all origins, including file:// (no origin)
     },
     credentials: true,
-    methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "token", "Authorization"]
 }));
 
 
-app.get('/test-socket',(req,res) => {
+app.get('/test-socket', (req, res) => {
     res.sendFile(__dirname + '/test.html');
 });
 // Routes
@@ -62,6 +62,9 @@ app.use('/api/conversations', require('./src/routes/conversation.routes'));
 // Twilio: outbound voice TwiML + inbound SMS/WhatsApp webhook
 app.use('/api/twilio', require('./src/routes/twilio.route'));
 app.use("/audio", express.static("src/audio"));
+app.use('/api/', apiLimiter);
+app.use('/api/auth', authLimiter);
+
 
 
 app.use(express.static("public"));
@@ -103,22 +106,22 @@ async function main() {
         process.exit(1);
     });
 
-     if (!MONGODB_URI) {
+    if (!MONGODB_URI) {
         throw new Error('Missing MONGODB_URI in environment');
     }
 
     await mongoose.connect(MONGODB_URI);
     console.log('Connected to MongoDB');
-    
+
 
     reminderCron.start();
     console.log('Reminder cron job started.');
 
     // Start the overdue cron job
-    overdueCron.start();    
+    overdueCron.start();
     console.log('Overdue cron job started.');
     // Start the reminder cron job
-   
+
 
     server.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
