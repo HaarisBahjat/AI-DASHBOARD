@@ -1,7 +1,7 @@
 const cron = require('node-cron');
-const Due= require('../models/db').Dues;
+const Due = require('../models/db').Dues;
 const CRON_TIMEZONE = process.env.CRON_TIMEZONE || 'UTC';
-const OVERDUE_CRON_EXPRESSION = process.env.OVERDUE_CRON_EXPRESSION || '* * * * *';
+const OVERDUE_CRON_EXPRESSION = process.env.OVERDUE_CRON_EXPRESSION || '0 0 * * *';
 
 // Default: run every minute. You can later change via OVERDUE_CRON_EXPRESSION (e.g. '0 0 * * *').
 const cronExpression = OVERDUE_CRON_EXPRESSION;

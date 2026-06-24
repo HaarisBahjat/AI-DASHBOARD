@@ -40,11 +40,11 @@ const getMonthKey = (dateValue) => {
 };
 
 const NAV_ITEMS = [
-  { key: 'conversations', label: 'Conversations' },
-  { key: 'intellige', label: 'Intellige', soon: true },
-  { key: 'finance', label: 'Finance' },
-  { key: 'analytics', label: 'Analytics' },
-  { key: 'settings', label: 'Settings' },
+  { key: 'conversations', label: 'Conversations', icon: 'dashboard' },
+  { key: 'intellige', label: 'Intellige', icon: 'auto_awesome', soon: true },
+  { key: 'finance', label: 'Finance', icon: 'account_balance_wallet' },
+  { key: 'analytics', label: 'Analytics', icon: 'show_chart' },
+  { key: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
 // Normalizes backend message records into UI-friendly message objects.
@@ -1179,100 +1179,153 @@ function VoiceChat({ onLogout, profile }) {
   };
 
   return (
-    <div className={`voice-chat-container dashboard-layout ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      <aside className="dashboard-sidebar">
-        <div className="sidebar-brand">ConvDash</div>
-        <div className="sidebar-nav">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.key}
-              className={`sidebar-nav-item ${activeTab === item.key ? 'active' : ''}`}
-              onClick={() => setActiveTab(item.key)}
-            >
-              <span>{item.label}</span>
-              {item.soon ? <small className="soon-pill">Soon to be released</small> : null}
-            </button>
-          ))}
+    <div className="flex w-full h-screen overflow-hidden bg-background dark:bg-background-dark text-on-surface dark:text-on-surface-dark transition-colors duration-300 relative z-0">
+      {/* Absolute Ambient Background Orbs for Glassmorphism */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/20 dark:bg-blue-600/30 blur-[120px] pointer-events-none -z-10"></div>
+      <div className="absolute bottom-[-10%] right-[-5%] w-[50%] h-[50%] rounded-full bg-teal-400/20 dark:bg-teal-500/20 blur-[140px] pointer-events-none -z-10"></div>
+      <div className="absolute top-[20%] right-[10%] w-[30%] h-[30%] rounded-full bg-purple-500/15 dark:bg-purple-600/20 blur-[100px] pointer-events-none -z-10"></div>
+      
+      {/* Sidebar */}
+      <aside className={`relative h-full glass-panel border-r border-outline-variant dark:border-outline-variant-dark flex flex-col p-stack-lg gap-stack-md z-30 transition-all duration-300 shrink-0 ${isSidebarCollapsed ? 'w-20' : 'w-[280px]'}`}>
+        <div className="flex items-center gap-stack-sm mb-stack-lg overflow-hidden">
+          <div className="w-10 h-10 bg-primary dark:bg-primary-dark rounded flex items-center justify-center text-on-primary shrink-0">
+            <span className="material-symbols-outlined font-bold">account_balance</span>
+          </div>
+          {!isSidebarCollapsed && (
+            <div className="whitespace-nowrap">
+              <h1 className="font-headline-md text-headline-md text-primary dark:text-primary-dark leading-none">ConvDash</h1>
+              <p className="font-label-md text-label-md text-on-surface-variant dark:text-on-surface-variant-dark uppercase tracking-widest">Dashboard</p>
+            </div>
+          )}
         </div>
-        <div className="sidebar-footer">
-          <button className="sidebar-nav-item" type="button">Help Center</button>
-          <button
-            className="sidebar-nav-item danger"
-            type="button"
-            onClick={() => {
-              if (typeof onLogout === 'function') onLogout();
-            }}
+        <nav className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden">
+          {NAV_ITEMS.map((item) => {
+            const isActive = activeTab === item.key;
+            return (
+              <div
+                key={item.key}
+                onClick={() => setActiveTab(item.key)}
+                className={`flex items-center gap-stack-md px-stack-md py-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                  isActive 
+                    ? 'text-primary dark:text-primary-dark font-bold bg-primary-container dark:bg-primary-container-dark' 
+                    : 'text-on-surface-variant dark:text-on-surface-variant-dark font-medium hover:text-primary dark:hover:text-primary-dark hover:bg-surface-container-low dark:hover:bg-surface-container-low-dark'
+                }`}
+                title={item.label}
+              >
+                <span className="material-symbols-outlined shrink-0" data-icon={item.icon}>{item.icon}</span>
+                {!isSidebarCollapsed && (
+                  <span className="font-label-md text-label-md flex-1 whitespace-nowrap">
+                    {item.label}
+                    {item.soon && <span className="ml-2 text-[10px] bg-outline-variant/30 px-2 py-0.5 rounded">Soon</span>}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+        <div className="pt-stack-lg border-t border-outline-variant dark:border-outline-variant-dark space-y-1 overflow-hidden">
+          <div className="flex items-center gap-stack-md px-stack-md py-3 text-on-surface-variant dark:text-on-surface-variant-dark font-medium hover:text-primary dark:hover:text-primary-dark hover:bg-surface-container-low dark:hover:bg-surface-container-low-dark rounded-lg cursor-pointer transition-all duration-200">
+            <span className="material-symbols-outlined shrink-0" data-icon="help_outline">help_outline</span>
+            {!isSidebarCollapsed && <span className="font-label-md text-label-md whitespace-nowrap">Support</span>}
+          </div>
+          <div 
+            className="flex items-center gap-stack-md px-stack-md py-3 text-on-surface-variant dark:text-on-surface-variant-dark font-medium hover:text-error hover:bg-error/5 rounded-lg cursor-pointer transition-all duration-200"
+            onClick={() => { if (typeof onLogout === 'function') onLogout(); }}
           >
-            Logout
-          </button>
+            <span className="material-symbols-outlined shrink-0" data-icon="logout">logout</span>
+            {!isSidebarCollapsed && <span className="font-label-md text-label-md whitespace-nowrap">Sign Out</span>}
+          </div>
         </div>
       </aside>
 
-      <section className="dashboard-main">
-        <div className="dashboard-topbar">
-          <button
-            className="sidebar-toggle-btn"
-            type="button"
-            onClick={() => setIsSidebarCollapsed((prev) => !prev)}
-            aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {isSidebarCollapsed ? '>' : '<'}
-          </button>
-          <input
-            className="dashboard-search"
-            type="text"
-            placeholder="Search conversations, titles, or dates..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          <div className="dashboard-topbar-right">
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col relative overflow-hidden transition-all duration-300">
+        {/* TopNavBar */}
+        <header className="w-full h-16 glass-panel border-b border-outline-variant dark:border-outline-variant-dark flex justify-between items-center px-container-padding sticky top-0 z-20 transition-colors duration-300 shrink-0">
+          <div className="flex items-center gap-4">
             <button
-              className="notif-btn"
               type="button"
-              aria-label={isConnected ? 'Notifications (connected)' : 'Notifications (disconnected)'}
-              title={isConnected ? 'Connected' : 'Disconnected'}
+              onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+              className="text-on-surface-variant dark:text-on-surface-variant-dark hover:bg-surface-container-low p-2 rounded-full"
             >
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M12 4a4 4 0 0 1 4 4v1.3c0 .9.27 1.79.78 2.53l1.08 1.58A1 1 0 0 1 17.04 15H6.96a1 1 0 0 1-.82-1.59l1.08-1.58A4.4 4.4 0 0 0 8 9.3V8a4 4 0 0 1 4-4Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M9.8 17a2.2 2.2 0 0 0 4.4 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-              </svg>
-              <span className={`notif-dot ${isConnected ? 'on' : 'off'}`}></span>
+              <span className="material-symbols-outlined">{isSidebarCollapsed ? 'menu_open' : 'menu'}</span>
             </button>
-            <div className="topbar-divider" aria-hidden="true"></div>
-            <div className="dashboard-user" role="group" aria-label="Profile">
-              <div className="dashboard-user-meta">
-                <strong>{profile?.name || 'User'}</strong>
-                <span>{profile?.role || 'Member'}</span>
-              </div>
-              <div className="dashboard-avatar" aria-hidden="true">{profileInitials}</div>
+            <div className="flex items-center bg-surface-container-low dark:bg-surface-container-low-dark rounded-full px-4 py-2 w-96 border border-outline-variant/50 dark:border-outline-variant-dark/50 focus-within:border-primary transition-colors duration-300">
+              <span className="material-symbols-outlined text-on-surface-variant dark:text-on-surface-variant-dark mr-2" style={{fontSize: '20px'}}>search</span>
+              <input 
+                className="bg-transparent border-none focus:outline-none focus:ring-0 text-body-sm w-full placeholder:text-on-surface-variant dark:placeholder:text-on-surface-variant-dark text-on-surface dark:text-on-surface-dark" 
+                placeholder="Search markets, assets, or tools..." 
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
           </div>
-        </div>
+          <div className="flex items-center gap-stack-md">
+            <div className="flex gap-2">
+              <button 
+                className="p-2 text-on-surface-variant dark:text-on-surface-variant-dark hover:bg-surface-container-low dark:hover:bg-surface-container-low-dark rounded-full transition-colors" 
+                title="Toggle theme"
+                onClick={() => {
+                  const htmlElement = document.documentElement;
+                  if (htmlElement.classList.contains('dark')) {
+                      htmlElement.classList.remove('dark');
+                      localStorage.setItem('theme', 'light');
+                  } else {
+                      htmlElement.classList.add('dark');
+                      localStorage.setItem('theme', 'dark');
+                  }
+                }}
+              >
+                <span className="material-symbols-outlined dark:hidden">dark_mode</span>
+                <span className="material-symbols-outlined hidden dark:block">light_mode</span>
+              </button>
+              <button className="p-2 text-on-surface-variant dark:text-on-surface-variant-dark hover:bg-surface-container-low dark:hover:bg-surface-container-low-dark rounded-full transition-colors relative">
+                <span className="material-symbols-outlined">notifications</span>
+                {isConnected && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-green-500 dark:bg-blue-400 rounded-full border border-white dark:border-surface-container"></span>}
+              </button>
+            </div>
+            <div className="flex items-center gap-3 pl-stack-md border-l border-outline-variant dark:border-outline-variant-dark transition-colors duration-300">
+              <div className="text-right hidden sm:block">
+                <p className="font-label-md text-label-md text-on-surface dark:text-on-surface-dark font-semibold">{profile?.name || 'User'}</p>
+                <p className="text-[10px] text-primary dark:text-primary-dark uppercase tracking-widest font-bold">{profile?.role || 'Member'}</p>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-primary-container dark:bg-primary-container-dark border border-primary/20 flex items-center justify-center font-bold text-primary dark:text-primary-dark">
+                {profileInitials}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Canvas */}
+        <div className="flex-1 p-container-padding space-y-gutter relative overflow-y-auto">
+          {/* Background Decoration */}
+          <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 dark:bg-primary-dark/5 rounded-full blur-[120px] -z-10 translate-x-1/2 -translate-y-1/2 transition-colors duration-300 pointer-events-none"></div>
 
         {activeTab === 'finance' ? (
-          <div className="finance-dashboard">
+          <div className="finance-dashboard glass-panel rounded-2xl shadow-xl">
             <div className="finance-head">
               <h2>Finance</h2>
               <p>{isAnalyticsLoading ? 'Refreshing finance metrics...' : 'Operational billing and collections overview.'}</p>
             </div>
 
             <div className="finance-kpis">
-              <article className="finance-kpi-card">
+              <article className="finance-kpi-card glass-panel rounded-xl">
                 <span>Total Revenue</span>
                 <strong>{formatCurrency(finance.summary.totalRevenue)}</strong>
                 <small>All paid invoices</small>
               </article>
-              <article className="finance-kpi-card">
+              <article className="finance-kpi-card glass-panel rounded-xl">
                 <span>Invoice Pending</span>
                 <strong>{finance.summary.pendingInvoices}</strong>
                 <small>{formatCurrency(finance.summary.pendingAmount)} outstanding</small>
               </article>
-              <article className="finance-kpi-card danger">
+              <article className="finance-kpi-card danger glass-panel rounded-xl">
                 <span>Overdue</span>
                 <strong>{finance.summary.overdueInvoices}</strong>
                 <small>{formatCurrency(finance.summary.overdueAmount)} at risk</small>
               </article>
-              <article className="finance-kpi-card success">
+              <article className="finance-kpi-card success glass-panel rounded-xl">
                 <span>Paid This Month</span>
                 <strong>{formatCurrency(finance.summary.paidThisMonth)}</strong>
                 <small>{finance.summary.paidThisMonthCount} invoices cleared</small>
@@ -1280,7 +1333,7 @@ function VoiceChat({ onLogout, profile }) {
             </div>
 
             <div className="finance-middle-grid">
-              <section className="finance-card">
+              <section className="finance-card glass-panel rounded-xl">
                 <h3>Collections (Last 6 Months)</h3>
                 <div className="collections-bars">
                   {finance.monthlySeries.map((point) => (
@@ -1298,7 +1351,7 @@ function VoiceChat({ onLogout, profile }) {
                 </div>
               </section>
 
-              <section className="finance-card">
+              <section className="finance-card glass-panel rounded-xl">
                 <h3>Invoice Aging</h3>
                 <div className="aging-grid">
                   <div>
@@ -1325,7 +1378,7 @@ function VoiceChat({ onLogout, profile }) {
               </section>
             </div>
 
-            <section className="finance-actions-card">
+            <section className="finance-actions-card glass-panel rounded-xl">
               <div className="finance-actions-head">
                 <h3>Finance Actions</h3>
                 <span>Mark dues paid or snooze reminders directly from here.</span>
@@ -1342,7 +1395,7 @@ function VoiceChat({ onLogout, profile }) {
                     const payNowLoading = financeActionLoadingId === `${item.id}:PAYNOW`;
 
                     return (
-                      <article key={item.id} className="finance-action-row">
+                      <article key={item.id} className="finance-action-row hover:bg-surface-container-low dark:hover:bg-surface-container-low-dark transition-colors duration-200">
                         <div className="finance-action-main">
                           <h4>{item.title}</h4>
                           <p>
@@ -1388,7 +1441,7 @@ function VoiceChat({ onLogout, profile }) {
               )}
             </section>
 
-            <div className="finance-bottom-card">
+            <div className="finance-bottom-card glass-panel rounded-xl">
               <div className="finance-bottom-tabs">
                 <button
                   type="button"
@@ -1447,31 +1500,31 @@ function VoiceChat({ onLogout, profile }) {
             </div>
           </div>
         ) : activeTab === 'analytics' ? (
-          <div className="analytics-dashboard">
+          <div className="analytics-dashboard glass-panel rounded-2xl shadow-xl">
             <div className="analytics-head">
               <h2>Analytics</h2>
               <p>{isAnalyticsLoading ? 'Refreshing metrics...' : 'Live overview of dues and voice collections.'}</p>
             </div>
 
             <div className="analytics-kpis">
-              <article className="kpi-card">
+              <article className="kpi-card glass-panel rounded-xl">
                 <span className="kpi-label">Total Dues</span>
                 <strong className="kpi-value">{analytics.duesCount}</strong>
                 <small className="kpi-sub">{formatCurrency(analytics.totals.totalAmount)} tracked</small>
               </article>
-              <article className="kpi-card">
+              <article className="kpi-card glass-panel rounded-xl">
                 <span className="kpi-label">Overdue Exposure</span>
                 <strong className="kpi-value danger">{formatCurrency(analytics.totals.overdueAmount)}</strong>
                 <small className="kpi-sub">{analytics.totals.overdue} overdue dues</small>
               </article>
-              <article className="kpi-card">
+              <article className="kpi-card glass-panel rounded-xl">
                 <span className="kpi-label">Collected</span>
                 <strong className="kpi-value success">{formatCurrency(analytics.totals.paidAmount)}</strong>
                 <small className="kpi-sub">
                   {analytics.totals.paid} paid dues • Avg delay {formatDays(analytics.totals.avgPaymentDelayDays)}
                 </small>
               </article>
-              <article className="kpi-card">
+              <article className="kpi-card glass-panel rounded-xl">
                 <span className="kpi-label">Upcoming (7d)</span>
                 <strong className="kpi-value">{analytics.totals.upcoming7Days}</strong>
                 <small className="kpi-sub">Non-paid dues due soon</small>
@@ -1479,7 +1532,7 @@ function VoiceChat({ onLogout, profile }) {
             </div>
 
             <div className="analytics-grid">
-              <section className="analytics-card">
+              <section className="analytics-card glass-panel rounded-xl">
                 <h3>Status Distribution</h3>
                 <div className="status-chart-wrap">
                   <Doughnut data={billStatusChartData} options={billStatusChartOptions} />
@@ -1491,7 +1544,7 @@ function VoiceChat({ onLogout, profile }) {
                 </div>
               </section>
 
-              <section className="analytics-card">
+              <section className="analytics-card glass-panel rounded-xl">
                 <h3>Conversation Throughput</h3>
                 <div className="mini-stats">
                   <div>
@@ -1521,7 +1574,7 @@ function VoiceChat({ onLogout, profile }) {
                 </div>
               </section>
 
-              <section className="analytics-card overdue-list-card">
+              <section className="analytics-card overdue-list-card glass-panel rounded-xl">
                 <h3>Top Overdue Dues</h3>
                 {analytics.topOverdue.length === 0 ? (
                   <p className="analytics-empty">No overdue dues right now.</p>
@@ -1542,18 +1595,18 @@ function VoiceChat({ onLogout, profile }) {
             </div>
           </div>
         ) : activeTab === 'intellige' ? (
-          <div className="tab-placeholder">
+          <div className="tab-placeholder glass-panel rounded-2xl shadow-xl">
             <h2>Intellige</h2>
             <p>Soon to be released.</p>
           </div>
         ) : activeTab !== 'conversations' ? (
-          <div className="tab-placeholder">
+          <div className="tab-placeholder glass-panel rounded-2xl shadow-xl">
             <h2>{NAV_ITEMS.find((n) => n.key === activeTab)?.label}</h2>
             <p>This tab is intentionally empty for now.</p>
           </div>
         ) : (
           <div className="conversation-dashboard">
-            <div className="conversation-list-panel">
+            <div className="conversation-list-panel glass-panel rounded-xl">
               <div className="conversation-list-header">
                 <h1>Conversations</h1>
                 <p>Review and manage your AI voice interactions.</p>
@@ -1589,7 +1642,7 @@ function VoiceChat({ onLogout, profile }) {
               </div>
             </div>
 
-            <div className="conversation-chat-panel">
+            <div className="conversation-chat-panel glass-panel rounded-xl">
               {selectedThread ? (
                 <>
                   <div className="chat-panel-header">
@@ -1657,7 +1710,8 @@ function VoiceChat({ onLogout, profile }) {
             </div>
           </div>
         )}
-      </section>
+        </div>
+      </main>
 
       <audio ref={audioRef} />
     </div>

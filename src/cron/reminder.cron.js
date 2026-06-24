@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const Due = require('../models/db').Dues;
 const CRON_TIMEZONE = process.env.CRON_TIMEZONE || 'UTC';
-const REMINDER_CRON_EXPRESSION = process.env.REMINDER_CRON_EXPRESSION || '* * * * *';
+const REMINDER_CRON_EXPRESSION = process.env.REMINDER_CRON_EXPRESSION || '0 * * * *';
 // Schedule reminder checks (default every minute, configurable via env).
 const cronExpression = REMINDER_CRON_EXPRESSION;
 const reminderHandler = async () => {

@@ -5,6 +5,49 @@
   --font-heading: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
+  /* Light Mode Base Variables */
+  --bg: #f8fafc;
+  --s0: #ffffff;
+  --s1: #f1f5f9;
+  --s2: #e2e8f0;
+  --s3: #cbd5e1;
+
+  --border: #e1e7f0;
+  --border-mid: #cbd5e1;
+
+  --fg: #0f172a;
+  --body: #334155;
+  --muted: #64748b;
+  --subtle: #475569;
+  --sub-label: #64748b;
+  --ghost: #94a3b8;
+
+  --blue: #2563eb;
+  --blue-text: #1d4ed8;
+  --blue-dim: rgba(37, 99, 235, 0.1);
+  --blue-glow: rgba(37, 99, 235, 0.2);
+  --teal: #0d9488;
+  --amber: #d97706;
+  --rose: #e11d48;
+  --green: #16a34a;
+  --danger-dark: #be123c;
+
+  /* Legacy aliases kept for existing components */
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card: var(--s0);
+  --card-border: var(--border);
+  --sidebar: var(--bg);
+  --muted-foreground: var(--muted);
+  --primary: var(--blue);
+  --primary-foreground: #ffffff;
+  --accent: var(--teal);
+  --destructive: var(--rose);
+  --ring: var(--blue);
+}
+
+.dark {
+  /* Dark Mode Variables */
   --bg: #131313;
   --s0: #1c1b1b;
   --s1: #201f1f;
@@ -28,10 +71,9 @@
   --teal: #2dd4bf;
   --amber: #fbbf24;
   --rose: #f87171;
-  --green: #34d399;
+  --green: #60a5fa; /* Changed from green to bluish per request */
   --danger-dark: #d15c68;
 
-  /* Legacy aliases kept for existing components */
   --background: var(--bg);
   --foreground: var(--fg);
   --card: var(--s0);
@@ -47,11 +89,10 @@
 
 body {
   margin: 0;
-  font-family: var(--font-body);
-  color: var(--fg);
-  background: var(--bg);
+  font-family: 'Geist', sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
 
 html,
@@ -64,23 +105,41 @@ body,
   box-sizing: border-box;
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-family: var(--font-heading);
-  letter-spacing: 0.1px;
+/* Material Symbols config */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-h1 {
-  font-size: 32px;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
+/* Aurelius Dashboard Classes */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05) !important;
+  transition: all 0.3s ease;
+}
+.dark .glass-panel {
+  background: rgba(23, 31, 51, 0.4) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2) !important;
 }
 
-#root {
-  min-height: 100vh;
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #3a4a5f;
 }
 
+.chart-gradient {
+  fill: url(#gradient);
+  fill-opacity: 0.1;
+}

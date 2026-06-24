@@ -40,7 +40,7 @@
 
 .sidebar-brand {
   padding: 20px 18px 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border);
   font-family: var(--font-heading);
   font-size: 20px;
   font-weight: 700;
@@ -85,8 +85,8 @@
 }
 
 .soon-pill {
-  border: 1px solid rgba(251, 191, 36, 0.34);
-  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid var(--border);
+  background: transparent;
   color: var(--amber);
   border-radius: 999px;
   font-size: 10px;
@@ -98,8 +98,8 @@
 }
 
 .sidebar-nav-item.active {
-  background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
+  background: transparent;
+  color: var(--fg);
   border-color: rgba(255, 255, 255, 0.04);
 }
 
@@ -116,7 +116,7 @@
 
 .sidebar-nav-item:hover:not(.active):not(.danger) {
   color: #8da8cc;
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
 }
 
 .sidebar-nav-item.danger {
@@ -125,14 +125,14 @@
 
 .sidebar-nav-item.danger:hover {
   color: var(--rose);
-  background: rgba(248, 113, 113, 0.08);
+  background: transparent;
   border-color: rgba(248, 113, 113, 0.18);
 }
 
 .sidebar-footer {
   margin-top: auto;
   padding: 12px 8px 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -157,16 +157,16 @@
   align-items: center;
   gap: 14px;
   padding: 12px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(19, 19, 19, 0.88);
+  border-bottom: 1px solid var(--border);
+  background: transparent;
   backdrop-filter: blur(14px);
 }
 
 .sidebar-toggle-btn {
   width: 34px;
   height: 34px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  background: transparent;
   color: var(--muted);
   border-radius: 8px;
   cursor: pointer;
@@ -177,7 +177,7 @@
 }
 
 .sidebar-toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: transparent;
   color: var(--fg);
   border-color: var(--border-mid);
 }
@@ -191,8 +191,8 @@
   max-width: 100%;
   justify-self: center;
   flex: 0 1 auto;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent;
+  border: 1px solid var(--border);
   border-radius: 10px;
   color: var(--body);
   padding: 11px 16px;
@@ -237,7 +237,7 @@
 }
 
 .notif-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: transparent;
   color: var(--fg);
 }
 
@@ -269,7 +269,7 @@
 .topbar-divider {
   width: 1px;
   height: 28px;
-  background: rgba(255, 255, 255, 0.06);
+  background: transparent;
 }
 
 .dashboard-user {
@@ -302,9 +302,9 @@
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  border: 1px solid rgba(75, 142, 255, 0.28);
+  border: 1px solid var(--border);
   background: linear-gradient(180deg, #2b5fcc 0%, #4b8eff 100%);
-  color: #ffffff;
+  color: var(--fg);
   font-size: 12px;
   font-weight: 700;
   display: inline-flex;
@@ -326,8 +326,8 @@
 
 .conversation-list-panel,
 .conversation-chat-panel {
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(28, 28, 30, 0.72);
+  border: 1px solid var(--border);
+  background: transparent;
   backdrop-filter: blur(12px);
   border-radius: 18px;
   min-height: 0;
@@ -358,9 +358,9 @@
 .new-conversation-btn {
   padding: 11px 15px;
   border-radius: 12px;
-  border: 1px solid rgba(75, 142, 255, 0.45);
+  border: 1px solid var(--border);
   background: var(--blue);
-  color: #ffffff;
+  color: var(--fg);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
@@ -402,20 +402,20 @@
 .conversation-item {
   padding: 13px 14px;
   margin-bottom: 10px;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: transparent;
+  border: 1px solid var(--border);
   border-radius: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .conversation-item:hover {
-  background: rgba(255, 255, 255, 0.045);
+  background: transparent;
   border-color: rgba(255, 255, 255, 0.08);
 }
 
 .conversation-item.active {
-  background: rgba(75, 142, 255, 0.09);
+  background: transparent;
   border-color: rgba(75, 142, 255, 0.28);
   box-shadow: inset 0 0 0 1px rgba(75, 142, 255, 0.1);
 }
@@ -444,13 +444,13 @@
 }
 
 .status-pill {
-  border: 1px solid rgba(75, 142, 255, 0.22);
+  border: 1px solid var(--border);
   border-radius: 999px;
   padding: 3px 10px;
   font-size: 12px;
   font-weight: 600;
   color: #6ea3ff;
-  background: rgba(75, 142, 255, 0.09);
+  background: transparent;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -467,13 +467,13 @@
 .status-pill.done {
   border-color: rgba(52, 211, 153, 0.3);
   color: var(--green);
-  background: rgba(52, 211, 153, 0.08);
+  background: transparent;
 }
 
 .status-pill.snoozed {
   border-color: rgba(251, 191, 36, 0.3);
   color: var(--amber);
-  background: rgba(251, 191, 36, 0.08);
+  background: transparent;
 }
 
 .conv-time {
@@ -491,9 +491,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border);
   padding: 16px 18px;
-  background: rgba(28, 28, 30, 0.55);
+  background: transparent;
   backdrop-filter: blur(8px);
 }
 
@@ -512,8 +512,8 @@
 }
 
 .three-dot-btn {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  background: transparent;
   color: var(--muted);
   border-radius: 10px;
   width: 40px;
@@ -522,7 +522,7 @@
 }
 
 .three-dot-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: transparent;
   color: var(--fg);
 }
 
@@ -563,8 +563,8 @@
   font-size: 13px;
   letter-spacing: 0.8px;
   color: var(--sub-label);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent;
+  border: 1px solid var(--border);
   border-radius: 999px;
   padding: 5px 10px;
   font-weight: 600;
@@ -584,23 +584,23 @@
 .message.user {
   align-self: flex-end;
   background: linear-gradient(180deg, #2382ff 0%, var(--blue) 100%);
-  color: #ffffff;
+  color: var(--fg);
   border-bottom-right-radius: 4px;
 }
 
 .message.assistant {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.035);
+  background: transparent;
   color: var(--body);
   border-bottom-left-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
 }
 
 .message.system {
   align-self: center;
-  background: rgba(45, 212, 191, 0.08);
+  background: transparent;
   color: #1ec7b5;
-  border: 1px solid rgba(45, 212, 191, 0.22);
+  border: 1px solid var(--border);
   max-width: 90%;
   text-align: center;
 }
@@ -631,7 +631,7 @@
   align-items: center;
   gap: 8px;
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.035);
+  background: transparent;
   color: var(--body);
 }
 
@@ -653,8 +653,8 @@
 
 .controls {
   padding: 14px 18px 16px;
-  background: rgba(28, 28, 30, 0.82);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: transparent;
+  border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 11px;
@@ -665,7 +665,7 @@
   padding: 0 20px;
   font-size: 15px;
   font-weight: 600;
-  border: 1px solid rgba(75, 142, 255, 0.26);
+  border: 1px solid var(--border);
   border-radius: 12px;
   background: linear-gradient(180deg, rgba(43, 49, 69, 0.96) 0%, rgba(33, 38, 55, 0.96) 100%);
   color: #d7def0;
@@ -687,7 +687,7 @@
 }
 
 .record-btn.recording {
-  background: rgba(248, 113, 113, 0.12);
+  background: transparent;
   border-color: rgba(248, 113, 113, 0.35);
   animation: pulse 1s ease-in-out infinite;
   color: var(--rose);
@@ -728,18 +728,18 @@
   padding: 0 10px;
   font-size: 12px;
   font-weight: 700;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
   color: #a7abb6;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  background: rgba(255, 255, 255, 0.035);
+  background: transparent;
 }
 
 .action-btn.paid {
-  background: rgba(45, 212, 191, 0.09);
+  background: transparent;
   border-color: rgba(45, 212, 191, 0.16);
   color: #39e0c7;
 }
@@ -750,7 +750,7 @@
 }
 
 .action-btn.snooze {
-  background: rgba(251, 191, 36, 0.09);
+  background: transparent;
   border-color: rgba(251, 191, 36, 0.16);
   color: #f3bd3f;
 }
@@ -761,7 +761,7 @@
 }
 
 .action-btn.dismiss {
-  background: rgba(248, 113, 113, 0.06);
+  background: transparent;
   border-color: rgba(248, 113, 113, 0.16);
   color: #ff7a7a;
 }
@@ -772,7 +772,7 @@
 }
 
 .action-btn.delete {
-  background: rgba(248, 113, 113, 0.05);
+  background: transparent;
   border-color: rgba(248, 113, 113, 0.16);
   color: #ff7474;
 }
@@ -932,7 +932,7 @@
 .collections-track {
   height: 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: transparent;
   overflow: hidden;
 }
 
@@ -951,7 +951,7 @@
 .aging-grid div {
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: transparent;
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -1028,7 +1028,7 @@
 .finance-action-row {
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: transparent;
   padding: 10px 12px;
   display: grid;
   grid-template-columns: 1fr auto;
@@ -1066,19 +1066,19 @@
 .finance-row-status.pending {
   color: var(--blue-text);
   border-color: rgba(79, 142, 247, 0.35);
-  background: rgba(79, 142, 247, 0.1);
+  background: transparent;
 }
 
 .finance-row-status.overdue {
   color: var(--rose);
   border-color: rgba(248, 113, 113, 0.35);
-  background: rgba(248, 113, 113, 0.12);
+  background: transparent;
 }
 
 .finance-inline-btn {
   border: 1px solid var(--border-mid);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
   color: var(--body);
   font-size: 12px;
   font-weight: 600;
@@ -1089,13 +1089,13 @@
 .finance-inline-btn.paid {
   color: var(--green);
   border-color: rgba(52, 211, 153, 0.35);
-  background: rgba(52, 211, 153, 0.1);
+  background: transparent;
 }
 
 .finance-inline-btn.snooze {
   color: var(--amber);
   border-color: rgba(251, 191, 36, 0.35);
-  background: rgba(251, 191, 36, 0.12);
+  background: transparent;
 }
 
 .finance-inline-btn:disabled {
@@ -1105,7 +1105,7 @@
 
 .finance-bottom-tabs {
   display: inline-flex;
-  background: rgba(255, 255, 255, 0.03);
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 4px;
@@ -1127,7 +1127,7 @@
 .finance-tab-btn.active {
   color: var(--blue-text);
   border-color: rgba(79, 142, 247, 0.32);
-  background: rgba(79, 142, 247, 0.1);
+  background: transparent;
 }
 
 .payment-methods-list,
@@ -1141,7 +1141,7 @@
 .transaction-item {
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: transparent;
   padding: 10px 12px;
   display: flex;
   align-items: center;
@@ -1172,7 +1172,7 @@
 .payment-method-actions button {
   border: 1px solid var(--border-mid);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
   color: var(--body);
   font-size: 12px;
   font-weight: 600;
@@ -1193,13 +1193,13 @@
 .method-status.pending {
   color: var(--amber);
   border-color: rgba(251, 191, 36, 0.35);
-  background: rgba(251, 191, 36, 0.12);
+  background: transparent;
 }
 
 .method-status.ready {
   color: var(--green);
   border-color: rgba(52, 211, 153, 0.35);
-  background: rgba(52, 211, 153, 0.1);
+  background: transparent;
 }
 
 .transaction-right {
@@ -1333,7 +1333,7 @@
   height: 250px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
+  background: transparent;
   padding: 10px;
 }
 
@@ -1347,7 +1347,7 @@
 .status-chart-summary span {
   border: 1px solid var(--border);
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.03);
+  background: transparent;
   padding: 8px;
   color: var(--sub-label);
   font-size: 12px;
@@ -1364,7 +1364,7 @@
 .mini-stats div {
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: transparent;
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -1390,9 +1390,9 @@
 }
 
 .overdue-item {
-  border: 1px solid rgba(248, 113, 113, 0.22);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgba(248, 113, 113, 0.06);
+  background: transparent;
   padding: 10px 12px;
   display: flex;
   justify-content: space-between;

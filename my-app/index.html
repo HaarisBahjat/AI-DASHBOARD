@@ -1,12 +1,131 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>my-app</title>
+    <title>Aurelius Capital | Institutional Terminal</title>
+    
+    <!-- Added Tailwind CSS & Fonts -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com" rel="preconnect"/>
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;display=swap" rel="stylesheet"/>
+
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "primary": {
+                    DEFAULT: "#1e40af",
+                    dark: "#10a2b9"
+                },
+                "on-primary": "#ffffff",
+                "primary-container": {
+                    DEFAULT: "#dbeafe",
+                    dark: "#023d61"
+                },
+                "on-primary-container": {
+                    DEFAULT: "#1e3a8a",
+                    dark: "#6ffbbe"
+                },
+                "secondary": {
+                    DEFAULT: "#475569",
+                    dark: "#b7c8e1"
+                },
+                "on-secondary": "#ffffff",
+                "secondary-container": {
+                    DEFAULT: "#f1f5f9",
+                    dark: "#3a4a5f"
+                },
+                "on-secondary-container": {
+                    DEFAULT: "#1e293b",
+                    dark: "#a9bad3"
+                },
+                "tertiary": "#7c3aed",
+                "surface": {
+                    DEFAULT: "#f8f9ff",
+                    dark: "#0b1326"
+                },
+                "on-surface": {
+                    DEFAULT: "#1a1c21",
+                    dark: "#dae2fd"
+                },
+                "surface-variant": {
+                    DEFAULT: "#e2e8f0",
+                    dark: "#2d3449"
+                },
+                "on-surface-variant": {
+                    DEFAULT: "#475569",
+                    dark: "#bbcabf"
+                },
+                "outline": {
+                    DEFAULT: "#94a3b8",
+                    dark: "#86948a"
+                },
+                "outline-variant": {
+                    DEFAULT: "#cbd5e1",
+                    dark: "#3c4a42"
+                },
+                "error": "#dc2626",
+                "background": {
+                    DEFAULT: "#f8f9ff",
+                    dark: "#0b1326"
+                },
+                "surface-container-low": {
+                    DEFAULT: "#eff4ff",
+                    dark: "#131b2e"
+                },
+                "surface-container": {
+                    DEFAULT: "#ffffff",
+                    dark: "#171f33"
+                },
+                "surface-container-high": {
+                    DEFAULT: "#f1f5f9",
+                    dark: "#222a3d"
+                }
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "container-padding": "32px",
+                    "gutter": "24px",
+                    "stack-md": "16px",
+                    "unit": "4px",
+                    "stack-sm": "8px",
+                    "stack-lg": "32px"
+            },
+            "fontFamily": {
+                    "body-lg": ["Geist", "sans-serif"],
+                    "headline-md": ["Geist", "sans-serif"],
+                    "headline-lg": ["Geist", "sans-serif"],
+                    "display-lg": ["Geist", "sans-serif"],
+                    "label-md": ["Geist", "sans-serif"],
+                    "mono-data": ["Geist", "sans-serif"],
+                    "body-sm": ["Geist", "sans-serif"]
+            },
+            "fontSize": {
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "500"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "mono-data": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
   </head>
-  <body>
+  <body class="bg-background dark:bg-background-dark text-on-surface dark:text-on-surface-dark transition-colors duration-300">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
