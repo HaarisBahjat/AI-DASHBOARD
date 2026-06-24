@@ -9,6 +9,7 @@ const protectedRouter = require('./src/routes/protected.router');
 const duesRoute = require('./src/routes/dues.route');
 const reminderCron = require('./src/cron/reminder.cron');
 const reminderRoute = require('./src/routes/reminder.route');
+const { apiLimiter, authLimiter } = require('./src/midddlewares/rateLimiter'); // [A] IP rate limiting
 const http = require('http');
 const net = require('net');
 const { Server } = require("socket.io");
@@ -35,8 +36,9 @@ voiceSocket(io);
 module.exports = { io };
 
 // Middleware to parse JSON bodies and form data (Twilio uses form data)
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// [H] Body size limit — prevents memory exhaustion from huge payloads
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 app.use(cookieParser());
 app.use(cors({
     origin: (origin, callback) => {
@@ -51,6 +53,10 @@ app.use(cors({
 app.get('/test-socket', (req, res) => {
     res.sendFile(__dirname + '/test.html');
 });
+// [A] Rate limiters — applied BEFORE routes so all requests are throttled
+app.use('/api/', apiLimiter);        // 100 req / 15 min per IP across all API routes
+app.use('/api/auth', authLimiter);   // 5 req / 15 min per IP on auth endpoints
+
 // Routes
 app.use('/api/auth', authRouter);
 app.use('/api/protected', protectedRouter);
@@ -62,8 +68,6 @@ app.use('/api/conversations', require('./src/routes/conversation.routes'));
 // Twilio: outbound voice TwiML + inbound SMS/WhatsApp webhook
 app.use('/api/twilio', require('./src/routes/twilio.route'));
 app.use("/audio", express.static("src/audio"));
-app.use('/api/', apiLimiter);
-app.use('/api/auth', authLimiter);
 
 
 

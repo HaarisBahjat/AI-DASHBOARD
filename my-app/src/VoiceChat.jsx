@@ -304,7 +304,6 @@ function VoiceChat({ onLogout, profile }) {
   }, [billThreads, selectedThread, selectedThreadKey]);
 
   const refreshConversations = async (authToken) => {
-    // Full refresh: list sessions then hydrate each with messages.
     const response = await fetch('http://localhost:3004/api/conversations', {
       headers: getAuthHeaders(authToken)
     });
@@ -314,38 +313,27 @@ function VoiceChat({ onLogout, profile }) {
     }
 
     const list = await response.json();
-    const normalizedList = (Array.isArray(list) ? list : []).map((conv) => ({
-      id: conv.conversationId || conv._id,
-      dueId: conv.dueId,
-      dueTitle: conv.dueTitle || 'Untitled Bill',
-      dueDate: conv.dueDate || null,
-      sessionDate: conv.sessionDate,
-      status: conv.status,
-      finalOutcomeAction: conv.finalOutcomeAction || null,
-      createdAt: conv.createdAt ? new Date(conv.createdAt) : new Date(),
-      lastActivityAt: conv.createdAt ? new Date(conv.createdAt) : new Date(),
-      messages: [],
-    }));
+    const withDetails = (Array.isArray(list) ? list : []).map((conv) => {
+      const msgList = normalizeMessages(conv.messages || []);
+      const createdAt = conv.createdAt ? new Date(conv.createdAt) : new Date();
+      const latestMessageTime = msgList.length > 0
+        ? new Date(msgList[msgList.length - 1].timestamp)
+        : createdAt;
+      const inferredOutcome = conv.finalOutcomeAction || inferFinalOutcomeActionFromMessages(msgList);
 
-    const withDetails = await Promise.all(normalizedList.map(async (conv) => {
-      try {
-        const convData = await loadConversation(conv.id, authToken);
-        const msgList = convData?.messages || [];
-        const latestMessageTime = msgList.length > 0
-          ? new Date(msgList[msgList.length - 1].timestamp)
-          : conv.lastActivityAt;
-        const inferredOutcome = conv.finalOutcomeAction || inferFinalOutcomeActionFromMessages(msgList);
-
-        return {
-          ...conv,
-          messages: msgList,
-          finalOutcomeAction: inferredOutcome,
-          lastActivityAt: latestMessageTime,
-        };
-      } catch {
-        return conv;
-      }
-    }));
+      return {
+        id: conv.conversationId || conv._id,
+        dueId: conv.dueId,
+        dueTitle: conv.dueTitle || 'Untitled Bill',
+        dueDate: conv.dueDate || null,
+        sessionDate: conv.sessionDate,
+        status: conv.status,
+        finalOutcomeAction: inferredOutcome,
+        createdAt: createdAt,
+        lastActivityAt: latestMessageTime,
+        messages: msgList,
+      };
+    });
 
     setConversations(withDetails);
   };
@@ -1613,7 +1601,7 @@ function VoiceChat({ onLogout, profile }) {
               </div>
 
               <button className="new-conversation-btn" onClick={createConversation} disabled={!isConnected}>
-                + New Session
+                + Add dues
               </button>
               {voiceSetupHint && <div className="hint-line">{voiceSetupHint}</div>}
 

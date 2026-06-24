@@ -2,6 +2,8 @@ const cron = require('node-cron');
 const Due = require('../models/db').Dues;
 const CRON_TIMEZONE = process.env.CRON_TIMEZONE || 'UTC';
 const REMINDER_CRON_EXPRESSION = process.env.REMINDER_CRON_EXPRESSION || '0 * * * *';
+// [E] Max dues processed per cron tick — prevents flooding Twilio/Gemini when DB is large
+const CRON_BATCH_LIMIT = parseInt(process.env.CRON_BATCH_LIMIT || '50', 10);
 // Schedule reminder checks (default every minute, configurable via env).
 const cronExpression = REMINDER_CRON_EXPRESSION;
 const reminderHandler = async () => {
@@ -60,7 +62,7 @@ const reminderHandler = async () => {
                     { $lt: [dueDayExpr, upcomingEndExclusiveExpr] },
                 ]
             }
-        });
+        }).limit(CRON_BATCH_LIMIT); // [E] batch cap
         console.log('Found upcomingDues:', upcomingDues.length);
         for(const due of upcomingDues){
             try {
@@ -87,7 +89,7 @@ const reminderHandler = async () => {
                     { $eq: [dueDayExpr, todayStartExpr] },
                 ]
             }
-        });
+        }).limit(CRON_BATCH_LIMIT); // [E] batch cap
         console.log('Found dueTodayDues:', dueTodayDues.length);
         for(const due of dueTodayDues){
             try {
@@ -124,7 +126,7 @@ const reminderHandler = async () => {
                     }
                 }
             ]
-        });
+        }).limit(CRON_BATCH_LIMIT); // [E] batch cap
         console.log('Found overdueDues:', overdueDues.length);
         for(const due of overdueDues){
             try {

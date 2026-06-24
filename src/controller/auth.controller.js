@@ -1,8 +1,13 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { User } = require('../models/db');
-const SECRET_KEY = 'your_secret_key';
-const JWT_REFRESH_SECRET_KEY = 'your_refresh_secret_key';
+
+// [G] Read secrets from env — never hardcode in source
+const SECRET_KEY = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET_KEY = process.env.JWT_REFRESH_SECRET;
+if (!SECRET_KEY || !JWT_REFRESH_SECRET_KEY) {
+    throw new Error('JWT_SECRET and JWT_REFRESH_SECRET env vars must be set.');
+}
 
 // signup controller
 exports.signup = async (req, res) => {

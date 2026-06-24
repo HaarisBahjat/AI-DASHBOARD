@@ -1,7 +1,11 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { User } = require('../models/db');
-const SECRET_KEY = 'your_secret_key';
+// [G] Never hardcode secrets — read from environment and fail fast if missing
+const SECRET_KEY = process.env.JWT_SECRET;
+if (!SECRET_KEY) {
+    throw new Error('JWT_SECRET env var is not set. Add it to your .env file.');
+}
 
 const authMiddleware = async (req, res, next) => {
       try {

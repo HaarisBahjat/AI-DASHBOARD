@@ -49,6 +49,33 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3004';
 
 // ─── Shared helpers ────────────────────────────────────────────────────────
 
+/**
+ * [B] Twilio webhook signature validation.
+ * Verifies that every inbound POST is genuinely from Twilio by checking
+ * the X-Twilio-Signature header against the expected HMAC-SHA1 hash.
+ * Skip validation in development when TWILIO_AUTH_TOKEN is not set.
+ */
+function validateTwilioSignature(req, res, next) {
+    const token = process.env.TWILIO_AUTH_TOKEN;
+    if (!token) {
+        // No token configured — skip in local dev, warn loudly
+        console.warn('[Twilio] TWILIO_AUTH_TOKEN not set — skipping signature validation!');
+        return next();
+    }
+    const fullUrl = BASE_URL + req.originalUrl;
+    const isValid = twilio.validateRequest(
+        token,
+        req.headers['x-twilio-signature'] || '',
+        fullUrl,
+        req.body
+    );
+    if (!isValid) {
+        console.warn(`[Twilio] Invalid signature rejected: ${fullUrl}`);
+        return res.status(403).send('Forbidden: Invalid Twilio signature');
+    }
+    next();
+}
+
 /** Send TwiML response. */
 function sendTwiml(res, buildFn) {
     const twiml = new twilio.twiml.VoiceResponse();
@@ -216,7 +243,7 @@ router.get('/voice-twiml', async (req, res) => {
 // Twilio body params: CallSid, SpeechResult, Confidence, ...
 // Our query params:   dueId, userId, title, amount, dueDate (fallback)
 // ═══════════════════════════════════════════════════════════════════════════
-router.post('/voice-gather', async (req, res) => {
+router.post('/voice-gather', validateTwilioSignature, async (req, res) => {
     const callSid = req.body.CallSid || '';
 
     // Query params are fallback context if call state is missing (server restart)
@@ -338,7 +365,7 @@ router.post('/voice-gather', async (req, res) => {
 // Twilio posts call lifecycle events here (ringing, answered, completed…).
 // We use it to capture duration and final status in the CallLog.
 // ═══════════════════════════════════════════════════════════════════════════
-router.post('/voice-status', async (req, res) => {
+router.post('/voice-status', validateTwilioSignature, async (req, res) => {
     const { CallSid, CallStatus, CallDuration } = req.body;
     console.log(`[Voice Status] SID=${CallSid} status=${CallStatus} duration=${CallDuration}s`);
 
@@ -376,7 +403,7 @@ router.post('/voice-status', async (req, res) => {
 // Inbound SMS / WhatsApp replies.
 // User can reply PAID / SNOOZE <n> / STATUS to the WhatsApp message.
 // ═══════════════════════════════════════════════════════════════════════════
-router.post('/webhook', async (req, res) => {
+router.post('/webhook', validateTwilioSignature, async (req, res) => {
     const twiml = new twilio.twiml.MessagingResponse();
 
     try {
@@ -404,7 +431,10 @@ router.post('/webhook', async (req, res) => {
             );
 
         } else if (bodyUpper.startsWith('SNOOZE')) {
-            const days = parseInt((bodyRaw.split(/\s+/)[1] || '3'), 10) || 3;
+            // [C] Cap snooze days to prevent abuse (e.g. SNOOZE 9999)
+            const MAX_SNOOZE_DAYS = parseInt(process.env.MAX_SNOOZE_DAYS || '30', 10);
+            const requestedDays = parseInt((bodyRaw.split(/\s+/)[1] || '3'), 10) || 3;
+            const days = Math.min(requestedDays, MAX_SNOOZE_DAYS);
             const snoozeDate = new Date();
             snoozeDate.setDate(snoozeDate.getDate() + days);
             const result = await Dues.updateMany(

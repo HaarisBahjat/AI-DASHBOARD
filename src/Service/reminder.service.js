@@ -100,6 +100,7 @@ exports.createReminder = async ({
             reminderType,
             messageText: existingReminder.messageText || messageText,
         });
+        // [F] Twilio already fired for this reminder today — do NOT send again
         return existingReminder;
     }
 

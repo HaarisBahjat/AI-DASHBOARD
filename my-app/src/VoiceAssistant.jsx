@@ -1,4 +1,4 @@
-﻿import React,{ useState, useEffect ,useRef} from 'react';
+import React,{ useState, useEffect ,useRef} from 'react';
 import { io } from 'socket.io-client';
 import './VoiceAssistant.css';
 
@@ -405,7 +405,7 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
             {error && <p className="assistant-status-line error">Error: {error}</p>}
 
             <div className="assistant-toolbar">
-                <button className="assistant-primary-btn" onClick={createConversation}>+ New Session</button>
+                <button className="assistant-primary-btn" onClick={createConversation}>+ Add dues</button>
                 <select
                     className="assistant-select"
                     value={conversationId || ''}

@@ -1,8 +1,9 @@
-const { audio } = require('@elevenlabs/elevenlabs-js/api/resources/dubbing');
 const {processVoiceMessage} = require('../Service/voice.service');
 const jwt = require('jsonwebtoken');
 
-const SECRET_KEY = 'your_secret_key';
+// [G] Read JWT secret from env — must match auth.controller and auth middleware
+const SECRET_KEY = process.env.JWT_SECRET || 'fallback_dev_secret';
+
 
 module.exports = (io) => {
     io.on('connection', (socket) => {

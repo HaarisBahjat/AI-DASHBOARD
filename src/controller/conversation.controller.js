@@ -8,7 +8,6 @@ const {processVoiceMessage}=require('../Service/voice.service');
 const {textToSpeech}=require('../Service/tts.service');
 const sttService = require('../Service/stt.service');
 const llmService=require('../Service/llm.service');
-const { audio } = require('@elevenlabs/elevenlabs-js/api/resources/dubbing');
 
 const getLocalDateKey = (date = new Date()) => {
     const year = date.getFullYear();
@@ -50,6 +49,16 @@ exports.listConversations = async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
+        const sessionIds = sessions.map(s => s._id);
+        const messages = await conversationMessage.find({ conversationId: { $in: sessionIds } }).sort({ createdAt: 1 }).lean();
+        const messagesBySessionId = {};
+        messages.forEach(msg => {
+            if (!messagesBySessionId[msg.conversationId]) {
+                messagesBySessionId[msg.conversationId] = [];
+            }
+            messagesBySessionId[msg.conversationId].push(msg);
+        });
+
         const formatted = sessions.map((session) => ({
             conversationId: session._id,
             // Keep dueId as a stable thread key; title can be duplicated across bills.
@@ -62,7 +71,8 @@ exports.listConversations = async (req, res) => {
             channel: session.channel,
             sessionDate: session.sessionDate,
             parentConversationId: session.parentConversationId || null,
-            createdAt: session.createdAt
+            createdAt: session.createdAt,
+            messages: messagesBySessionId[session._id] || []
         }));
 
         res.json(formatted);

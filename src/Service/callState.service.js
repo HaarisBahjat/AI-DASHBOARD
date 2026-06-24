@@ -21,7 +21,11 @@ const store = new Map();
 // Auto-expire call state after 10 minutes max (covers longest possible call)
 const CALL_TTL_MS = 10 * 60 * 1000;
 
-const MAX_USER_TURNS = 5; // prevent infinite loops
+const MAX_USER_TURNS = 5; // [existing] prevent infinite loops
+
+// [D] Max simultaneous in-flight calls — prevents Twilio balance drain
+// and in-memory Map growth in case of abuse or cron over-firing.
+const MAX_CONCURRENT_CALLS = parseInt(process.env.MAX_CONCURRENT_CALLS || '20', 10);
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -35,6 +39,12 @@ const MAX_USER_TURNS = 5; // prevent infinite loops
  * @param {object} opts.due   - { title, amount, dueDate }
  */
 exports.initCall = (callSid, { dueId, userId, due }) => {
+    // [D] Reject new calls when at capacity
+    if (store.size >= MAX_CONCURRENT_CALLS) {
+        console.warn(`[CallState] MAX_CONCURRENT_CALLS (${MAX_CONCURRENT_CALLS}) reached — refusing new call ${callSid}`);
+        throw new Error(`Server busy: max concurrent calls (${MAX_CONCURRENT_CALLS}) reached`);
+    }
+
     // Clear any stale state for this SID (e.g. retried call)
     if (store.has(callSid)) {
         clearTimeout(store.get(callSid)._timer);

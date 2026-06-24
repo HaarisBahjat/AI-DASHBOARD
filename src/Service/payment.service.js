@@ -26,4 +26,3 @@ exports.createOrder=async (amount,currency='INR',receipt)=>{
         throw new Error('Error creating order: ' + (error && error.message ? error.message : String(error)));
     }
 };
-exports
