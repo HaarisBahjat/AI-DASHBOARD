@@ -17,6 +17,23 @@ const voiceSocket = require('./src/Sockets/voice.socket');
 const { setIO } = require('./src/Sockets/socketState');
 const PORT = Number(process.env.PORT) || 3004;
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
+const configuredOrigins = [process.env.CORS_ORIGIN, process.env.FRONTEND_ORIGIN]
+    .filter(Boolean)
+    .flatMap((value) => value.split(','))
+    .map((value) => value.trim())
+    .filter(Boolean);
+const devOrigins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:4173',
+    'http://127.0.0.1:4173',
+];
+const allowedOrigins = new Set([
+    ...configuredOrigins,
+    ...(process.env.NODE_ENV === 'production' ? [] : devOrigins),
+]);
 
 
 
@@ -26,7 +43,14 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*",
+        origin: (origin, callback) => {
+            if (!origin || allowedOrigins.has(origin)) {
+                return callback(null, true);
+            }
+
+            return callback(new Error(`CORS blocked for origin: ${origin}`));
+        },
+        credentials: true,
         methods: ["GET", "POST"]
     }
 });
@@ -42,7 +66,11 @@ app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 app.use(cookieParser());
 app.use(cors({
     origin: (origin, callback) => {
-        callback(null, true); // allow all origins, including file:// (no origin)
+        if (!origin || allowedOrigins.has(origin)) {
+            return callback(null, true);
+        }
+
+        return callback(new Error(`CORS blocked for origin: ${origin}`));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

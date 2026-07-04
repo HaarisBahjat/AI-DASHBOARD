@@ -1,5 +1,6 @@
 import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { apiUrl } from './lib/api';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
 const FeaturesPage = lazy(() => import('./pages/FeaturesPage'));
@@ -49,7 +50,7 @@ function DashboardShell() {
     if (!token) return;
     (async () => {
       try {
-        const res = await fetch('http://localhost:3004/api/auth/profile', {
+        const res = await fetch(apiUrl('/api/auth/profile'), {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         });
         if (!res.ok) return;

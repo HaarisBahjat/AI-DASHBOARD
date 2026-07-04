@@ -64,7 +64,12 @@ exports.login = async (req, res) => {
         user.lastLoginAt = new Date();
         await user.save();
         //Sent refresh token in http only cookie
-        res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: true, sameSite: 'Strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
         res.status(200).json({ message: 'Login successful', token: token, user: { _id: user._id } });
     } catch (error) {
         res.status(500).json({ message: 'Error logging in', error: error.message });
@@ -113,8 +118,8 @@ exports.logout = async (req, res) => {
         
         res.clearCookie('refreshToken',{
             httpOnly: true,
-            secure: true,
-            sameSite: 'Strict'
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
         });
         res.status(200).json({ message: 'Logout successful' });
     } catch (error) {

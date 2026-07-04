@@ -53,6 +53,12 @@ exports.textToSpeech = async (text) => {
 const axios = require("axios");
 const fs = require("fs");
 
+const TTS_SERVICE_URL = process.env.TTS_SERVICE_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5000');
+
+if (!TTS_SERVICE_URL) {
+  throw new Error('TTS_SERVICE_URL is required in production');
+}
+
 // basic TTS service that can be swapped between different backends
 // for now the code calls a local Piper server running on port 5000.  If
 // you want to restore the original ElevenLabs implementation simply
@@ -68,7 +74,7 @@ async function textToSpeech(text) {
     console.log(`Requesting TTS for text: ${text.substring(0, 50)}...`);
 
     const response = await axios.post(
-      "http://localhost:5000/tts",
+      `${TTS_SERVICE_URL}/tts`,
       { text: text.trim() },
       {
         responseType: "arraybuffer", // important: get raw binary data

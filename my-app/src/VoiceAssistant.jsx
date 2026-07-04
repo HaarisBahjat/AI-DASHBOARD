@@ -1,5 +1,6 @@
 import React,{ useState, useEffect ,useRef} from 'react';
 import { io } from 'socket.io-client';
+import { apiUrl, socketUrl } from './lib/api';
 import './VoiceAssistant.css';
 
 const getAuthHeaders = () => {
@@ -55,7 +56,7 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
             setLoading(true);
             setError(null);
             try {
-                const resp = await fetch('http://localhost:3004/api/conversations', {
+                const resp = await fetch(apiUrl('/api/conversations'), {
                     headers: getAuthHeaders(),
                 });
                 if (!resp.ok) throw new Error(`Unable to load conversations ${resp.status}`);
@@ -99,7 +100,7 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
         if (!userId) return;
 
         const authToken = localStorage.getItem('authToken');
-        const socket = io('http://localhost:3004', authToken ? {
+        const socket = io(socketUrl, authToken ? {
             auth: { token: authToken }
         } : undefined);
 
@@ -119,7 +120,7 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
                 const audio = new Audio(URL.createObjectURL(blob));
                 audio.play();
             } else if (data.audioFile) {
-                const audio = new Audio(`http://localhost:3004${data.audioFile}`);
+                const audio = new Audio(apiUrl(data.audioFile));
                 audio.play();
             }
         };
@@ -145,7 +146,7 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
         setLoading(true);
         setError(null);
         try {
-            const resp = await fetch(`http://localhost:3004/api/conversations/${encodeURIComponent(id)}`, {
+            const resp = await fetch(apiUrl(`/api/conversations/${encodeURIComponent(id)}`), {
                 headers: getAuthHeaders(),
             });
             if (!resp.ok) throw new Error(`Unable to load conversation ${resp.status}`);
@@ -173,7 +174,7 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
         try {
             const dueTitle = await captureSingleUtterance('Say the due title now (example: electricity bill).');
 
-            let resp = await fetch('http://localhost:3004/api/conversations', {
+            let resp = await fetch(apiUrl('/api/conversations'), {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ dueTitle, channel: 'VOICE' }),
@@ -183,7 +184,7 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
                 const duplicateData = await resp.json();
                 if (duplicateData?.requiresDueDate) {
                     const spokenDueDate = await captureSingleUtterance('Multiple dues found. Say the due date, for example March 30 2026.');
-                    resp = await fetch('http://localhost:3004/api/conversations', {
+                    resp = await fetch(apiUrl('/api/conversations'), {
                         method: 'POST',
                         headers: getAuthHeaders(),
                         body: JSON.stringify({ dueTitle, dueDate: spokenDueDate, channel: 'VOICE' }),
@@ -358,7 +359,7 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
         setError(null);
         try {
             const targetId = conversationId;
-            const resp = await fetch(`http://localhost:3004/api/conversations/${encodeURIComponent(targetId)}`, {
+            const resp = await fetch(apiUrl(`/api/conversations/${encodeURIComponent(targetId)}`), {
                 method: 'DELETE',
                 headers: getAuthHeaders(),
             });

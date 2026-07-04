@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { apiUrl } from './lib/api';
 import './LoginForm.css';
 
 const LoginForm = () => {
@@ -12,7 +13,7 @@ const LoginForm = () => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:3004/api/auth/login', {
+      const response = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

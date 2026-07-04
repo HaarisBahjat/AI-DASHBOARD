@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import { ArcElement, Chart as ChartJS, Legend, Tooltip } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
+import { apiUrl, socketUrl } from './lib/api';
 import './VoiceChat.css';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -245,7 +246,7 @@ function VoiceChat({ onLogout, profile }) {
     const token = tokenOverride || localStorage.getItem('authToken');
     if (!token || !conversationId) return null;
 
-    const response = await fetch(`http://localhost:3004/api/conversations/${conversationId}`, {
+    const response = await fetch(apiUrl(`/api/conversations/${conversationId}`), {
       headers: getAuthHeaders(token)
     });
 
@@ -304,7 +305,7 @@ function VoiceChat({ onLogout, profile }) {
   }, [billThreads, selectedThread, selectedThreadKey]);
 
   const refreshConversations = async (authToken) => {
-    const response = await fetch('http://localhost:3004/api/conversations', {
+    const response = await fetch(apiUrl('/api/conversations'), {
       headers: getAuthHeaders(authToken)
     });
 
@@ -344,7 +345,7 @@ function VoiceChat({ onLogout, profile }) {
 
     setIsAnalyticsLoading(true);
     try {
-      const response = await fetch('http://localhost:3004/api/dues', {
+      const response = await fetch(apiUrl('/api/dues'), {
         headers: getAuthHeaders(token)
       });
 
@@ -659,7 +660,7 @@ function VoiceChat({ onLogout, profile }) {
     }
 
     // Socket lifecycle for real-time assistant replies.
-    const newSocket = io('http://localhost:3004', {
+    const newSocket = io(socketUrl, {
       auth: { token: authToken }
     });
 
@@ -853,7 +854,7 @@ function VoiceChat({ onLogout, profile }) {
         audioRef.current.src = url;
         audioRef.current.play();
       } else if (result.audioFile) {
-        audioRef.current.src = `http://localhost:3004${result.audioFile}`;
+        audioRef.current.src = apiUrl(result.audioFile);
         audioRef.current.play();
       }
     } catch {
@@ -917,7 +918,7 @@ function VoiceChat({ onLogout, profile }) {
     try {
       const dueTitle = await captureSingleUtterance('Say the bill title now.');
 
-      let response = await fetch('http://localhost:3004/api/conversations', {
+      let response = await fetch(apiUrl('/api/conversations'), {
         method: 'POST',
         headers: getAuthHeaders(authToken),
         body: JSON.stringify({ dueTitle, channel: 'VOICE' })
@@ -928,7 +929,7 @@ function VoiceChat({ onLogout, profile }) {
         const duplicateData = await response.json();
         if (duplicateData?.requiresDueDate) {
           const spokenDueDate = await captureSingleUtterance('Multiple bills found. Say the due date.');
-          response = await fetch('http://localhost:3004/api/conversations', {
+          response = await fetch(apiUrl('/api/conversations'), {
             method: 'POST',
             headers: getAuthHeaders(authToken),
             body: JSON.stringify({ dueTitle, dueDate: spokenDueDate, channel: 'VOICE' })
@@ -948,7 +949,7 @@ function VoiceChat({ onLogout, profile }) {
       setSelectedThreadKey(data?.dueId ? `due:${data.dueId}` : `session:${data.conversationId}`);
 
       if (data.audioFile) {
-        audioRef.current.src = `http://localhost:3004${data.audioFile}`;
+        audioRef.current.src = apiUrl(data.audioFile);
         audioRef.current.play();
       }
     } catch (error) {
@@ -960,7 +961,7 @@ function VoiceChat({ onLogout, profile }) {
     if (!activeConversationId) return;
 
     try {
-      const response = await fetch(`http://localhost:3004/api/conversations/${activeConversationId}/complete`, {
+      const response = await fetch(apiUrl(`/api/conversations/${activeConversationId}/complete`), {
         method: 'POST',
         headers: getAuthHeaders(localStorage.getItem('authToken')),
         body: JSON.stringify({
@@ -995,8 +996,8 @@ function VoiceChat({ onLogout, profile }) {
     }
 
     const endpoint = action === 'PAID'
-      ? `http://localhost:3004/api/dues/${dueId}/pay`
-      : `http://localhost:3004/api/dues/${dueId}/snooze`;
+      ? apiUrl(`/api/dues/${dueId}/pay`)
+      : apiUrl(`/api/dues/${dueId}/snooze`);
 
     const body = action === 'SNOOZE'
       ? JSON.stringify({ snoozeDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() })
@@ -1062,7 +1063,7 @@ function VoiceChat({ onLogout, profile }) {
 
     try {
       // 1) Create order on server
-      const createRes = await fetch('http://localhost:3004/api/payments/create', {
+      const createRes = await fetch(apiUrl('/api/payments/create'), {
         method: 'POST',
         headers: getAuthHeaders(token),
         body: JSON.stringify({ dueId }),
@@ -1090,7 +1091,7 @@ function VoiceChat({ onLogout, profile }) {
         handler: async function (response) {
           try {
             // 4) Verify payment on server
-            const verifyRes = await fetch('http://localhost:3004/api/payments/verify', {
+            const verifyRes = await fetch(apiUrl('/api/payments/verify'), {
               method: 'POST',
               headers: getAuthHeaders(token),
               body: JSON.stringify({
@@ -1140,7 +1141,7 @@ function VoiceChat({ onLogout, profile }) {
     if (!shouldDelete) return;
 
     try {
-      const response = await fetch(`http://localhost:3004/api/conversations/${activeConversationId}`, {
+      const response = await fetch(apiUrl(`/api/conversations/${activeConversationId}`), {
         method: 'DELETE',
         headers: getAuthHeaders(localStorage.getItem('authToken'))
       });

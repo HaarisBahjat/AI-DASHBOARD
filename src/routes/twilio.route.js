@@ -45,7 +45,11 @@ const { conductCallTurn }     = require('../Service/llm.service');
 const { emitToUser }          = require('../Sockets/socketState');
 const callState               = require('../Service/callState.service');
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3004';
+const BASE_URL = process.env.BASE_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3004');
+
+if (!BASE_URL) {
+    throw new Error('BASE_URL is required in production');
+}
 
 // ─── Shared helpers ────────────────────────────────────────────────────────
 

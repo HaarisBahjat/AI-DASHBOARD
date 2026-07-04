@@ -26,6 +26,7 @@ module.exports = (io) => {
                
             try {
                 console.log("Voice message received");
+                const authenticatedUserId = socket.data.userId;
                 
                 // Validate audio data
                 if (!data.audioBuffer) {
@@ -37,8 +38,11 @@ module.exports = (io) => {
                 }
                 
                 console.log("Audio buffer length:", data.audioBuffer.length);
-                console.log("User ID:", data.userId);
                 console.log("Conversation ID:", data.conversationId);
+
+                if (!authenticatedUserId) {
+                    throw new Error("Socket authentication required");
+                }
                 
                 if (data.audioBuffer.length === 0) {
                     throw new Error("Audio buffer is empty - no audio was recorded");
@@ -47,7 +51,7 @@ module.exports = (io) => {
                 const result = await processVoiceMessage({
                     audioBuffer: Buffer.from(data.audioBuffer),
                     conversationId: data.conversationId,
-                    userId: data.userId
+                    userId: authenticatedUserId
                 });
                 socket.emit('voice-reply', result);
             }

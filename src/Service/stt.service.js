@@ -1,6 +1,12 @@
 const axios = require('axios');
 const formData = require('form-data');
 
+const STT_SERVICE_URL = process.env.STT_SERVICE_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8000');
+
+if (!STT_SERVICE_URL) {
+    throw new Error('STT_SERVICE_URL is required in production');
+}
+
 exports.speechToText = async (audioBuffer) => {
     try {
         // Validate that audioBuffer has content
@@ -17,8 +23,8 @@ exports.speechToText = async (audioBuffer) => {
             contentType: 'audio/webm'
         });
         
-        console.log('Sending audio to transcription service at http://localhost:8000/transcribe');
-        const response = await axios.post('http://localhost:8000/transcribe', form, {
+        console.log(`Sending audio to transcription service at ${STT_SERVICE_URL}/transcribe`);
+        const response = await axios.post(`${STT_SERVICE_URL}/transcribe`, form, {
             headers: form.getHeaders(),
             timeout: 60000 // 60 second timeout for transcription
         });

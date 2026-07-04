@@ -5,7 +5,11 @@ const ACCOUNT_SID  = process.env.TWILIO_ACCOUNT_SID;
 const AUTH_TOKEN   = process.env.TWILIO_AUTH_TOKEN;
 const FROM_SMS     = process.env.TWILIO_FROM_NUMBER;          // +1xxxxxxxxxx
 const FROM_WA      = process.env.TWILIO_WHATSAPP_FROM;        // whatsapp:+14155238886
-const BASE_URL     = process.env.BASE_URL || 'http://localhost:3004'; // public-facing URL for TwiML
+const BASE_URL     = process.env.BASE_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3004'); // public-facing URL for TwiML
+
+if (!BASE_URL) {
+    throw new Error('BASE_URL is required in production');
+}
 
 // ── Helper for detailed Twilio error logging ───────────────────────────────────────
 function logTwilioError(context, err) {
