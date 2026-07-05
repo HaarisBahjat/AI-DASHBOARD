@@ -226,7 +226,7 @@ function VoiceChat({ onLogout, profile }) {
   const [financeBottomTab, setFinanceBottomTab] = useState('paymentMethods');
   const [financeActionLoadingId, setFinanceActionLoadingId] = useState(null);
   const [financeActionNotice, setFinanceActionNotice] = useState('');
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const streamRef = useRef(null);
@@ -1304,8 +1304,20 @@ function VoiceChat({ onLogout, profile }) {
       <div className="absolute bottom-[-10%] right-[-5%] w-[50%] h-[50%] rounded-full bg-teal-400/20 dark:bg-teal-500/20 blur-[140px] pointer-events-none -z-10"></div>
       <div className="absolute top-[20%] right-[10%] w-[30%] h-[30%] rounded-full bg-purple-500/15 dark:bg-purple-600/20 blur-[100px] pointer-events-none -z-10"></div>
       
+      {/* Mobile Backdrop Overlay */}
+      {!isSidebarCollapsed && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm transition-opacity duration-300"
+          onClick={() => setIsSidebarCollapsed(true)}
+        />
+      )}
+      
       {/* Sidebar */}
-      <aside className={`relative h-full glass-panel border-r border-outline-variant dark:border-outline-variant-dark flex flex-col p-stack-lg gap-stack-md z-30 transition-all duration-300 shrink-0 ${isSidebarCollapsed ? 'w-20' : 'w-[280px]'}`}>
+      <aside className={`h-full glass-panel border-r border-outline-variant dark:border-outline-variant-dark flex flex-col p-stack-lg gap-stack-md transition-all duration-300 shrink-0 ${
+        isSidebarCollapsed 
+          ? 'hidden md:flex md:w-20 md:relative md:z-30' 
+          : 'fixed inset-y-0 left-0 z-40 w-[280px] md:relative md:w-[280px] md:z-30 shadow-2xl md:shadow-none bg-surface dark:bg-surface-dark md:bg-transparent flex'
+      }`}>
         <div className="flex items-center gap-stack-sm mb-stack-lg overflow-hidden">
           <div className="w-10 h-10 bg-primary dark:bg-primary-dark rounded flex items-center justify-center text-on-primary shrink-0">
             <span className="material-symbols-outlined font-bold">account_balance</span>
@@ -1323,7 +1335,10 @@ function VoiceChat({ onLogout, profile }) {
             return (
               <div
                 key={item.key}
-                onClick={() => setActiveTab(item.key)}
+                onClick={() => {
+                  setActiveTab(item.key);
+                  if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarCollapsed(true);
+                }}
                 className={`flex items-center gap-stack-md px-stack-md py-3 rounded-lg cursor-pointer transition-all duration-200 ${
                   isActive 
                     ? 'text-primary dark:text-primary-dark font-bold bg-primary-container dark:bg-primary-container-dark' 

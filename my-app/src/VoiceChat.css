@@ -315,13 +315,15 @@
 
 .conversation-dashboard {
   display: grid;
-  grid-template-columns: 420px 1fr;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   gap: 16px;
   padding: 18px;
   min-height: 0;
   height: 100%;
   flex: 1;
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 
 .conversation-list-panel,
@@ -333,6 +335,9 @@
   min-height: 0;
   height: 100%;
   overflow: hidden;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .conversation-list-panel {
@@ -1475,7 +1480,11 @@
   }
 
   .conversation-dashboard {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 10px;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .analytics-kpis {
