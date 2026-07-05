@@ -1313,12 +1313,12 @@ function VoiceChat({ onLogout, profile }) {
       )}
       
       {/* Sidebar */}
-      <aside className={`h-full glass-panel border-r border-outline-variant dark:border-outline-variant-dark flex flex-col p-stack-lg gap-stack-md transition-all duration-300 shrink-0 ${
+      <aside className={`h-full glass-panel border-r border-outline-variant dark:border-outline-variant-dark flex-col gap-stack-md transition-all duration-300 shrink-0 ${
         isSidebarCollapsed 
-          ? 'hidden md:flex md:w-20 md:relative md:z-30' 
-          : 'fixed inset-y-0 left-0 z-40 w-[280px] md:relative md:w-[280px] md:z-30 shadow-2xl md:shadow-none bg-surface dark:bg-surface-dark md:bg-transparent flex'
+          ? 'hidden md:flex md:w-20 md:p-3 md:items-center md:relative md:z-30' 
+          : 'flex fixed inset-y-0 left-0 z-40 w-[280px] p-6 md:relative md:w-[280px] md:z-30 shadow-2xl md:shadow-none bg-surface dark:bg-surface-dark md:bg-transparent'
       }`}>
-        <div className="flex items-center gap-stack-sm mb-stack-lg overflow-hidden">
+        <div className={`flex items-center gap-stack-sm mb-stack-lg overflow-hidden ${isSidebarCollapsed ? 'justify-center w-full' : ''}`}>
           <div className="w-10 h-10 bg-primary dark:bg-primary-dark rounded flex items-center justify-center text-on-primary shrink-0">
             <span className="material-symbols-outlined font-bold">account_balance</span>
           </div>
@@ -1329,7 +1329,7 @@ function VoiceChat({ onLogout, profile }) {
             </div>
           )}
         </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden">
+        <nav className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden w-full">
           {NAV_ITEMS.map((item) => {
             const isActive = activeTab === item.key;
             return (
@@ -1339,7 +1339,7 @@ function VoiceChat({ onLogout, profile }) {
                   setActiveTab(item.key);
                   if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarCollapsed(true);
                 }}
-                className={`flex items-center gap-stack-md px-stack-md py-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                className={`flex items-center gap-stack-md ${isSidebarCollapsed ? 'justify-center p-3 w-full' : 'px-stack-md py-3 w-full'} rounded-lg cursor-pointer transition-all duration-200 ${
                   isActive 
                     ? 'text-primary dark:text-primary-dark font-bold bg-primary-container dark:bg-primary-container-dark' 
                     : 'text-on-surface-variant dark:text-on-surface-variant-dark font-medium hover:text-primary dark:hover:text-primary-dark hover:bg-surface-container-low dark:hover:bg-surface-container-low-dark'
@@ -1357,13 +1357,13 @@ function VoiceChat({ onLogout, profile }) {
             );
           })}
         </nav>
-        <div className="pt-stack-lg border-t border-outline-variant dark:border-outline-variant-dark space-y-1 overflow-hidden">
-          <div className="flex items-center gap-stack-md px-stack-md py-3 text-on-surface-variant dark:text-on-surface-variant-dark font-medium hover:text-primary dark:hover:text-primary-dark hover:bg-surface-container-low dark:hover:bg-surface-container-low-dark rounded-lg cursor-pointer transition-all duration-200">
+        <div className={`pt-stack-lg border-t border-outline-variant dark:border-outline-variant-dark space-y-1 overflow-hidden w-full ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
+          <div className={`flex items-center gap-stack-md ${isSidebarCollapsed ? 'justify-center p-3 w-full' : 'px-stack-md py-3 w-full'} text-on-surface-variant dark:text-on-surface-variant-dark font-medium hover:text-primary dark:hover:text-primary-dark hover:bg-surface-container-low dark:hover:bg-surface-container-low-dark rounded-lg cursor-pointer transition-all duration-200`}>
             <span className="material-symbols-outlined shrink-0" data-icon="help_outline">help_outline</span>
             {!isSidebarCollapsed && <span className="font-label-md text-label-md whitespace-nowrap">Support</span>}
           </div>
           <div 
-            className="flex items-center gap-stack-md px-stack-md py-3 text-on-surface-variant dark:text-on-surface-variant-dark font-medium hover:text-error hover:bg-error/5 rounded-lg cursor-pointer transition-all duration-200"
+            className={`flex items-center gap-stack-md ${isSidebarCollapsed ? 'justify-center p-3 w-full' : 'px-stack-md py-3 w-full'} text-on-surface-variant dark:text-on-surface-variant-dark font-medium hover:text-error hover:bg-error/5 rounded-lg cursor-pointer transition-all duration-200`}
             onClick={() => { if (typeof onLogout === 'function') onLogout(); }}
           >
             <span className="material-symbols-outlined shrink-0" data-icon="logout">logout</span>
@@ -1384,11 +1384,11 @@ function VoiceChat({ onLogout, profile }) {
             >
               <span className="material-symbols-outlined">{isSidebarCollapsed ? 'menu_open' : 'menu'}</span>
             </button>
-            <div className="flex items-center bg-surface-container-low dark:bg-surface-container-low-dark rounded-full px-4 py-2 w-96 border border-outline-variant/50 dark:border-outline-variant-dark/50 focus-within:border-primary transition-colors duration-300">
-              <span className="material-symbols-outlined text-on-surface-variant dark:text-on-surface-variant-dark mr-2" style={{fontSize: '20px'}}>search</span>
+            <div className="flex items-center bg-surface-container-low dark:bg-surface-container-low-dark rounded-full px-3 py-1.5 w-32 sm:w-48 md:w-64 lg:w-96 border border-outline-variant/50 dark:border-outline-variant-dark/50 focus-within:border-primary transition-all duration-300">
+              <span className="material-symbols-outlined text-on-surface-variant dark:text-on-surface-variant-dark mr-2" style={{fontSize: '18px'}}>search</span>
               <input 
                 className="bg-transparent border-none focus:outline-none focus:ring-0 text-body-sm w-full placeholder:text-on-surface-variant dark:placeholder:text-on-surface-variant-dark text-on-surface dark:text-on-surface-dark" 
-                placeholder="Search markets, assets, or tools..." 
+                placeholder="Search..." 
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
