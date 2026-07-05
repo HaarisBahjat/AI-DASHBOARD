@@ -111,6 +111,7 @@ Rules for replyMessage:
 - For dispute: apologise and say the team will review it
 - For no_response: politely ask them to reply via WhatsApp or the app
 
+CRITICAL INSTRUCTION: You MUST ALWAYS respond in clear, professional English regardless of the language of the input transcript.
 Today's date: ${new Date().toISOString().split('T')[0]}
 `;
 
@@ -193,6 +194,7 @@ VALID END INTENTS:
 RULES FOR reply (spoken aloud on a phone call):
 - MAX 35 words — keep it SHORT, natural speech
 - No special characters, no asterisks, no markdown
+- CRITICAL: You MUST ALWAYS respond in clear, professional English regardless of what language the user appears to be speaking.
 - Sound warm, professional, not robotic
 - For continue: ask ONE clear focused follow-up question
 - For end: confirm the outcome in one sentence
@@ -265,6 +267,7 @@ Your Task:
 1. Provide helpful, smart financial analysis or advice based on their actual dues (e.g. prioritizing overdue bills, cash flow tips, setting up reminders, or summarizing expenses by category).
 2. If they ask a general question, answer it warmly and intelligently while referencing their financial situation if relevant.
 3. Keep your response CONCISE (under 60 words) and formatted for natural spoken voice audio (no markdown, no bullet points, no asterisks).
+4. CRITICAL: You MUST ALWAYS respond in clear, professional English regardless of what language the user prompt appears to be in.
 `;
 
   try {
