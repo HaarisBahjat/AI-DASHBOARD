@@ -339,24 +339,6 @@
   max-width: 100%;
 }
 
-/* Universal rigid horizontal locking for all dashboard boxes and scrolling containers */
-.conversation-dashboard,
-.conversation-list-panel,
-.conversation-chat-panel,
-.conversations-list,
-.messages,
-.finance-dashboard,
-.analytics-dashboard,
-.conversation-item,
-.message,
-.chat-panel-header,
-.conversation-list-header {
-  overflow-x: hidden !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
-  min-width: 0 !important;
-}
-
 .conversation-list-panel {
   display: flex;
   flex-direction: column;
@@ -407,11 +389,8 @@
 .conversations-list {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden !important;
+  overflow-x: hidden;
   padding-right: 4px;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
 }
 
 .section-label {
@@ -566,14 +545,11 @@
 .messages {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden !important;
+  overflow-x: hidden;
   padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
 }
 
 .message {
