@@ -1,0 +1,9 @@
+node_modules
+my-app
+.env
+.env.*
+.git
+.gitignore
+.gemini
+scripts
+*.log
