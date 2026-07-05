@@ -519,13 +519,13 @@ export default function HomePage() {
           </p>
 
           <div className="hp-hero-actions mk-reveal mk-reveal-delay-3">
-            <a href="/signup" className="hp-try-btn">
+            <Link to="/signup" className="hp-try-btn">
               Start for Free
               <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3 8h10M9 4l4 4-4 4"/><path d="M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>
-            </a>
-            <a href="/features" className="hp-watch-btn">
+            </Link>
+            <Link to="/features" className="hp-watch-btn">
               ▶ See how it works
-            </a>
+            </Link>
           </div>
 
           {/* Browser mockup */}
@@ -785,8 +785,8 @@ export default function HomePage() {
               Free to start. No credit card. No code. Just a smarter way to collect.
             </p>
             <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <a href="/signup" className="hp-try-btn">Get Started Free →</a>
-              <a href="/pricing" className="hp-watch-btn">View Pricing</a>
+              <Link to="/signup" className="hp-try-btn">Get Started Free →</Link>
+              <Link to="/pricing" className="hp-watch-btn">View Pricing</Link>
             </div>
           </div>
         </div>
