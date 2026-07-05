@@ -28,30 +28,26 @@ module.exports = (io) => {
                 console.log("Voice message received");
                 const authenticatedUserId = socket.data.userId;
                 
-                // Validate audio data
-                if (!data.audioBuffer) {
-                    throw new Error("No audio buffer provided");
+                // Validate audio data or transcript
+                const hasAudio = data.audioBuffer && Array.isArray(data.audioBuffer) && data.audioBuffer.length > 0;
+                const hasTranscript = data.transcript && typeof data.transcript === 'string' && data.transcript.trim() !== '';
+
+                if (!hasAudio && !hasTranscript) {
+                    throw new Error("No audio or speech captured. Please check your microphone.");
                 }
                 
-                if (!Array.isArray(data.audioBuffer)) {
-                    throw new Error("Audio buffer must be an array");
-                }
-                
-                console.log("Audio buffer length:", data.audioBuffer.length);
+                console.log("Audio buffer length:", hasAudio ? data.audioBuffer.length : 0);
                 console.log("Conversation ID:", data.conversationId);
 
                 if (!authenticatedUserId) {
                     throw new Error("Socket authentication required");
                 }
                 
-                if (data.audioBuffer.length === 0) {
-                    throw new Error("Audio buffer is empty - no audio was recorded");
-                }
-                
                 const result = await processVoiceMessage({
-                    audioBuffer: Buffer.from(data.audioBuffer),
+                    audioBuffer: hasAudio ? Buffer.from(data.audioBuffer) : Buffer.alloc(0),
                     conversationId: data.conversationId,
-                    userId: authenticatedUserId
+                    userId: authenticatedUserId,
+                    fallbackText: data.transcript || ''
                 });
                 socket.emit('voice-reply', result);
             }

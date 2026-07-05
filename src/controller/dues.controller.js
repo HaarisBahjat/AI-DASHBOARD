@@ -1,14 +1,10 @@
 const { Dues } = require('../models/db');
+const llmService = require('../Service/llm.service');
 
 // Create a new due
 exports.createDue = async (req, res) => {
     try {
-        console.log('createDue - req.user:', req.user);
-        console.log('createDue - req.user._id:', req.user?._id);
-        
         const { amount, title, dueDate } = req.body;
-        console.log('Request Body:', { amount, title, dueDate });
-        
         if (!amount || !title || !dueDate) {
             return res.status(400).json({ message: 'Amount, title and due date are required' });
         }
@@ -88,5 +84,20 @@ exports.getAllDues = async (req, res) => {
         res.status(200).json({ dues });
     } catch (error) {
         res.status(500).json({ message: 'Error fetching all dues', error: error.message });
+    }
+};
+
+// Scan receipt or bill image using Gemini Vision OCR
+exports.scanReceipt = async (req, res) => {
+    try {
+        const { imageBase64, mimeType } = req.body;
+        if (!imageBase64) {
+            return res.status(400).json({ message: 'Image base64 data is required' });
+        }
+        const extractedData = await llmService.scanReceiptImage(imageBase64, mimeType || 'image/png');
+        res.status(200).json({ message: 'Receipt scanned successfully', data: extractedData });
+    } catch (error) {
+        console.error('scanReceipt error:', error.message);
+        res.status(500).json({ message: 'Error scanning receipt', error: error.message });
     }
 };

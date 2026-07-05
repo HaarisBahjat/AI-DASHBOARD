@@ -12,6 +12,8 @@ router.get('/', authMiddleware, duesController.getDuesByUser);
 router.patch('/:dueId/pay', authMiddleware, duesController.updatedueStatus);
 // Snooze a due to a future date
 router.patch('/:dueId/snooze', authMiddleware, duesController.snoozeDue);
+// Scan receipt or bill image with AI Vision OCR
+router.post('/scan', authMiddleware, duesController.scanReceipt);
 // Admin: Get all dues
 router.get('/admin/all', authMiddleware, roleAuth(['ADMIN']), duesController.getAllDues);
 

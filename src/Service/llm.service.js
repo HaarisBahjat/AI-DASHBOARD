@@ -19,7 +19,7 @@ const MAX_HISTORY_TURNS = parseInt(process.env.CALL_HISTORY_TURNS || '6', 10);
 // ─────────────────────────────────────────────────────────────────────────────
 exports.detectIntent = async (text) => {
   const prompt = `
-You are an intent detection system for a Dues Reminder app.
+You are an intelligent intent detection and financial assistant system for a Dues Reminder app.
 
 Extract intent and structured data. For dates, if the user says "tomorrow", calculate it from today's date. Always return dates in YYYY-MM-DD format.
 
@@ -28,7 +28,14 @@ Important: Always return intent in LOWERCASE. Valid intents are ONLY:
 - update_due
 - delete_due
 - list_dues
+- sum_dues
+- top_upcoming
+- financial_advice
 - general_chat
+
+If the user asks for the total sum, balance, or how much they owe in total → use "sum_dues".
+If the user asks for top upcoming, urgent, or next N bills → use "top_upcoming" and extract topK (default 3).
+If the user asks for financial suggestions, budgeting tips, which bill to prioritize paying, or advice → use "financial_advice".
 
 Return ONLY valid JSON in this format (all intent values must be lowercase):
 
@@ -39,7 +46,8 @@ Return ONLY valid JSON in this format (all intent values must be lowercase):
   "amount": null,
   "dueDate": "YYYY-MM-DD",
   "dueId": "",
-  "category": ""
+  "category": "",
+  "topK": 3
 }
 
 Today's date: ${new Date().toISOString().split('T')[0]}
@@ -236,5 +244,85 @@ Today's date: ${new Date().toISOString().split('T')[0]}
       snoozeDays: null,
       reply: 'We were unable to process your response. Please contact us via the app or WhatsApp. Goodbye.'
     };
+  }
+};
+
+exports.generateFinancialInsight = async (userPrompt, duesList = []) => {
+  const duesSummary = duesList.map(d => 
+    `- Title: "${d.title}", Amount: $${d.amount}, Due: ${new Date(d.dueDate).toLocaleDateString()}, Category: ${d.category || 'general'}`
+  ).join('\n');
+
+  const prompt = `
+You are an intelligent AI Financial Advisor and Dues Assistant. You have access to the user's current dues portfolio:
+
+Current Dues:
+${duesSummary || 'No dues currently recorded.'}
+
+User Question / Prompt:
+"${userPrompt}"
+
+Your Task:
+1. Provide helpful, smart financial analysis or advice based on their actual dues (e.g. prioritizing overdue bills, cash flow tips, setting up reminders, or summarizing expenses by category).
+2. If they ask a general question, answer it warmly and intelligently while referencing their financial situation if relevant.
+3. Keep your response CONCISE (under 60 words) and formatted for natural spoken voice audio (no markdown, no bullet points, no asterisks).
+`;
+
+  try {
+    const response = await callGemini(
+      { contents: [{ role: 'user', parts: [{ text: prompt }] }] },
+      { temperature: 0.3 }
+    );
+    return extractText(response).trim();
+  } catch (err) {
+    console.error('generateFinancialInsight failed:', err.message);
+    return "I recommend reviewing your earliest upcoming dues first to avoid any late fees. Let me know if you want to set up reminders!";
+  }
+};
+
+exports.scanReceiptImage = async (imageBase64, mimeType = 'image/png') => {
+  const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+  const prompt = `
+You are an expert financial OCR and bill extraction AI assistant.
+Examine this receipt, invoice, or bill image carefully.
+Extract the following details:
+1. title (e.g. "Amazon Purchase", "Electricity Utility Bill", "Starbucks Coffee")
+2. amount (exact numerical total due or paid, e.g. 45.99 as a number)
+3. dueDate (in YYYY-MM-DD format. If no due date is listed on the receipt, estimate or use receipt date + 14 days, or today + 7 days)
+4. category (e.g. "utilities", "shopping", "food", "entertainment", "general")
+5. vendor (the store or company name)
+6. confidence ("high", "medium", or "low")
+7. summary (a 1-sentence summary of what this bill/receipt is for)
+
+Return ONLY valid JSON in this exact format (no markdown, no backticks, no extra text):
+{
+  "title": "Amazon Purchase",
+  "amount": 45.99,
+  "dueDate": "${new Date(Date.now() + 7*86400000).toISOString().split('T')[0]}",
+  "category": "shopping",
+  "vendor": "Amazon",
+  "confidence": "high",
+  "summary": "Order for office supplies and electronics."
+}
+`;
+
+  try {
+    const response = await callGemini(
+      {
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: prompt },
+              { inlineData: { data: base64Data, mimeType } }
+            ]
+          }
+        ]
+      },
+      { temperature: 0.1 }
+    );
+    return JSON.parse(extractText(response));
+  } catch (err) {
+    console.error('scanReceiptImage failed:', err.response?.data || err.message);
+    throw new Error('AI Vision scanning failed: ' + (err.message || 'unknown error'));
   }
 };

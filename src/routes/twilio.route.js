@@ -38,12 +38,12 @@
  */
 
 const express = require('express');
-const router  = express.Router();
-const twilio  = require('twilio');
+const router = express.Router();
+const twilio = require('twilio');
 const { Dues, User, CallLog } = require('../models/db');
-const { conductCallTurn }     = require('../Service/llm.service');
-const { emitToUser }          = require('../Sockets/socketState');
-const callState               = require('../Service/callState.service');
+const { conductCallTurn } = require('../Service/llm.service');
+const { emitToUser } = require('../Sockets/socketState');
+const callState = require('../Service/callState.service');
 
 const BASE_URL = process.env.BASE_URL || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3004');
 
@@ -97,13 +97,13 @@ function buildGather(twiml, { replyText, gatherUrl }) {
     twiml.say({ voice: 'Polly.Joanna', language: 'en-US' }, replyText);
 
     const gather = twiml.gather({
-        input:       'speech',
-        action:      gatherUrl,
-        method:      'POST',
+        input: 'speech',
+        action: gatherUrl,
+        method: 'POST',
         speechTimeout: 'auto',       // Twilio auto-detects end of speech
-        speechModel:  'phone_call',  // optimised for phone audio
-        language:    'en-US',
-        timeout:     8,              // seconds of silence before fallback
+        speechModel: 'phone_call',  // optimised for phone audio
+        language: 'en-US',
+        timeout: 8,              // seconds of silence before fallback
     });
 
     // Nudge the caller while Gather is listening
@@ -168,10 +168,10 @@ async function saveCallLog({ userId, dueId, turns, intent, snoozeDays, outcome, 
         await CallLog.findOneAndUpdate(
             { userId, dueId, status: { $in: ['initiated', 'in-progress'] } },
             {
-                callSid:  callSid || null,
-                status:   'completed',
+                callSid: callSid || null,
+                status: 'completed',
                 transcript: fullTranscript,
-                llmIntent:  intent  || null,
+                llmIntent: intent || null,
                 snoozeDays: snoozeDays || null,
                 outcome,
             },
@@ -195,10 +195,10 @@ async function saveCallLog({ userId, dueId, turns, intent, snoozeDays, outcome, 
 router.get('/voice-twiml', async (req, res) => {
     const {
         CallSid = '',
-        dueId   = '',
-        userId  = '',
-        title   = 'your payment',
-        amount  = '',
+        dueId = '',
+        userId = '',
+        title = 'your payment',
+        amount = '',
         dueDate = ''
     } = req.query;
 
@@ -239,6 +239,72 @@ router.get('/voice-twiml', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ROUTE 1b — GET /api/twilio/voice-twiml-group
+//
+// Batched version — one call covers ALL overdue dues for the user.
+// Query params: userId, dues (JSON array of {dueId,title,amount,dueDate})
+// ═══════════════════════════════════════════════════════════════════════════
+router.get('/voice-twiml-group', async (req, res) => {
+    const { CallSid = '', userId = '', dues: duesRaw = '[]' } = req.query;
+
+    let dues = [];
+    try { dues = JSON.parse(duesRaw); } catch { dues = []; }
+
+    // Build a natural-sounding opening that lists every due
+    let openingText = `Hello! This is an automated payment reminder from your AI Dashboard. `;
+
+    if (dues.length === 0) {
+        openingText += `You have overdue payments that need attention.`;
+    } else if (dues.length === 1) {
+        const d = dues[0];
+        openingText +=
+            `Your due "${d.title}" of ${d.amount} dollars was due on ${d.dueDate} and is now overdue. `;
+    } else {
+        openingText += `You have ${dues.length} overdue payments: `;
+        dues.forEach((d, i) => {
+            const connector = i === dues.length - 1 ? 'and ' : '';
+            openingText += `${connector}"${d.title}" of ${d.amount} dollars due on ${d.dueDate}`;
+            if (i < dues.length - 1) openingText += ', ';
+        });
+        openingText += '. ';
+    }
+
+    openingText +=
+        `How would you like to handle these? ` +
+        `You can say: I have paid, I will pay all, give me more time, or I dispute a charge.`;
+
+    // Use the first due as the primary for call state & CallLog
+    const primaryDue = dues[0] || {};
+    const primaryDueId = primaryDue.dueId || '';
+
+    if (CallSid) {
+        callState.initCall(CallSid, {
+            dueId:  primaryDueId,
+            userId,
+            due:    primaryDue,
+            allDues: dues,   // store all for context in gather
+        });
+        callState.addTurn(CallSid, 'ai', openingText);
+    }
+
+    try {
+        if (primaryDueId && userId) {
+            await CallLog.create({ callSid: CallSid || null, userId, dueId: primaryDueId, status: 'in-progress' });
+        }
+    } catch (e) { /* ignore duplicate */ }
+
+    const gatherUrl =
+        `${BASE_URL}/api/twilio/voice-gather` +
+        `?userId=${encodeURIComponent(userId)}` +
+        `&dueId=${encodeURIComponent(primaryDueId)}` +
+        `&title=${encodeURIComponent(primaryDue.title || '')}` +
+        `&amount=${encodeURIComponent(primaryDue.amount || '')}` +
+        `&dueDate=${encodeURIComponent(primaryDue.dueDate || '')}`;
+
+    sendTwiml(res, (twiml) => buildGather(twiml, { replyText: openingText, gatherUrl }));
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ROUTE 2 — POST /api/twilio/voice-gather
 //
 // Called by Twilio after every user speech input.
@@ -252,10 +318,10 @@ router.post('/voice-gather', validateTwilioSignature, async (req, res) => {
 
     // Query params are fallback context if call state is missing (server restart)
     const {
-        dueId   = '',
-        userId  = '',
-        title   = 'your payment',
-        amount  = '',
+        dueId = '',
+        userId = '',
+        title = 'your payment',
+        amount = '',
         dueDate = ''
     } = req.query;
 
@@ -277,7 +343,7 @@ router.post('/voice-gather', validateTwilioSignature, async (req, res) => {
     }
 
     const dueContext = state.due || { title, amount, dueDate };
-    const resolvedDueId  = state.dueId  || dueId;
+    const resolvedDueId = state.dueId || dueId;
     const resolvedUserId = state.userId || userId;
 
     // ── Record user turn ─────────────────────────────────────────────────
@@ -329,10 +395,10 @@ router.post('/voice-gather', validateTwilioSignature, async (req, res) => {
     if (resolvedDueId && resolvedUserId) {
         try {
             outcome = await applyCallDecision({
-                intent:     llmResult.intent,
+                intent: llmResult.intent,
                 snoozeDays: llmResult.snoozeDays,
-                userId:     resolvedUserId,
-                dueId:      resolvedDueId,
+                userId: resolvedUserId,
+                dueId: resolvedDueId,
             });
         } catch (actionErr) {
             console.error('[Voice Gather] Action error:', actionErr.message);
@@ -343,10 +409,10 @@ router.post('/voice-gather', validateTwilioSignature, async (req, res) => {
     // ── Save completed call to MongoDB ───────────────────────────────────
     const finalState = callState.endCall(callSid); // clears the Map entry
     await saveCallLog({
-        userId:    resolvedUserId,
-        dueId:     resolvedDueId,
-        turns:     finalState ? finalState.turns : state.turns,
-        intent:    llmResult.intent,
+        userId: resolvedUserId,
+        dueId: resolvedDueId,
+        turns: finalState ? finalState.turns : state.turns,
+        intent: llmResult.intent,
         snoozeDays: llmResult.snoozeDays,
         outcome,
         callSid,
@@ -378,8 +444,8 @@ router.post('/voice-status', validateTwilioSignature, async (req, res) => {
             ? CallStatus : 'completed';
 
         const update = {
-            callSid:  CallSid,
-            status:   finalStatus,
+            callSid: CallSid,
+            status: finalStatus,
             duration: parseInt(CallDuration, 10) || 0,
         };
 
@@ -411,10 +477,10 @@ router.post('/webhook', validateTwilioSignature, async (req, res) => {
     const twiml = new twilio.twiml.MessagingResponse();
 
     try {
-        const rawFrom    = req.body.From || '';
+        const rawFrom = req.body.From || '';
         const fromNumber = rawFrom.replace(/^whatsapp:/i, '');
-        const bodyRaw    = (req.body.Body || '').trim();
-        const bodyUpper  = bodyRaw.toUpperCase();
+        const bodyRaw = (req.body.Body || '').trim();
+        const bodyUpper = bodyRaw.toUpperCase();
 
         const user = await User.findOne({ phone: fromNumber });
         if (!user) {

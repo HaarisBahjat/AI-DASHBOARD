@@ -12,48 +12,65 @@ const isValidObjectId = (id) => {
     return mongoose.Types.ObjectId.isValid(id);
 };
 
-exports.processVoiceMessage = async ({conversationId, audioBuffer,userId}) => {
+exports.processVoiceMessage = async ({conversationId, audioBuffer, userId, fallbackText = ''}) => {
     try {
         // Validate conversationId if provided
         if (conversationId && !isValidObjectId(conversationId)) {
             throw new Error("Invalid conversation ID format");
         }
 
-        // Step 1: Convert audio to text
-        const text= await sttService.speechToText(audioBuffer);
-      if(!text || text.trim() === ""){
-        throw new Error("Could not transcribe audio. Please try again with clearer audio.");
-      }
-      //LOAD CONVERSATION
-      const session= await conversationSession.findById(conversationId);
-      let currentSession = session;
-      let sessionExists = true;
-      if(!session){
-        // Create a new session for testing
-        currentSession = await conversationSession.create({
-          userId: userId,
-          status: "IN_PROGRESS",
-          clarificationState: "NONE",
-          pendingIntent: null,
-          pendingData: null
+        // LOAD CONVERSATION FIRST
+        const session = await conversationSession.findById(conversationId);
+        let currentSession = session;
+        let sessionExists = true;
+        if (!session) {
+            currentSession = await conversationSession.create({
+                userId: userId,
+                status: "IN_PROGRESS",
+                clarificationState: "NONE",
+                pendingIntent: null,
+                pendingData: null
+            });
+            conversationId = currentSession._id.toString();
+            sessionExists = false;
+        }
+        if (sessionExists && currentSession.userId.toString() !== userId.toString()) {
+            throw new Error("Access denied");
+        }
+        if (currentSession.status === "COMPLETED") {
+            throw new Error("Conversation session is already completed");
+        }
+
+        // Step 1: Convert audio to text (try Whisper STT first, fallback to browser SpeechRecognition transcript)
+        let text = '';
+        try {
+            if (audioBuffer && audioBuffer.length > 0) {
+                text = await sttService.speechToText(audioBuffer);
+            }
+        } catch (sttErr) {
+            console.warn(`[STT] Whisper STT error (${sttErr.message}), checking browser fallback...`);
+        }
+
+        if (!text || text.trim() === "") {
+            if (fallbackText && fallbackText.trim() !== "") {
+                console.log(`[STT] Using browser SpeechRecognition fallback: "${fallbackText}"`);
+                text = fallbackText.trim();
+            }
+        }
+
+        if (!text || text.trim() === "") {
+            console.log("[STT] No speech detected by Whisper or browser.");
+            return finalizeReply(currentSession, "I didn't quite catch that. Could you please repeat what you said or speak a bit louder?");
+        }
+
+        // save user message to db
+        const userMessage = await conversationMessage.create({
+            conversationId,
+            roles: "USER",
+            message: text
         });
-        conversationId = currentSession._id.toString();
-        sessionExists = false;
-      }
-      if (sessionExists && currentSession.userId.toString() !== userId.toString()) {
-    throw new Error("Access denied");
-  }
-    if(currentSession.status==="COMPLETED"){
-        throw new Error("Conversation session is already completed");
-    }
-    //saave user message to db
-    const userMessage= await conversationMessage.create({
-        conversationId,
-        roles:"USER",
-        message:text
-    });
-    currentSession.status="IN_PROGRESS";
-    await currentSession.save();
+        currentSession.status = "IN_PROGRESS";
+        await currentSession.save();
 
     let replytext="";
 
@@ -213,24 +230,56 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer,userId}) => {
       return finalizeReply(currentSession, replytext);
 
     }
-    //LIST DUES INTENT LOGIC
-    if(normalizedIntent ==="list_dues"){
-      const dues= await Due.find({userId});
-      if(dues.length===0){
-        replytext="You have no dues at the moment.";
+    // SUM DUES INTENT LOGIC
+    if (normalizedIntent === "sum_dues") {
+      const dues = await Due.find({ userId });
+      if (dues.length === 0) {
+        replytext = "You currently have no dues recorded, so your total outstanding balance is $0.";
         return finalizeReply(currentSession, replytext);
       }
-      const dueList=dues.map(due=>`- ${due.title}: ${due.amount} due on ${due.dueDate.toDateString()}`).join("\n");
-      replytext=`Here are your current dues:\n${dueList}`;
+      const total = dues.reduce((sum, due) => sum + (Number(due.amount) || 0), 0);
+      replytext = `You have ${dues.length} dues with a total outstanding balance of $${total.toFixed(2)}. Would you like me to list your upcoming bills or suggest a payment priority?`;
       return finalizeReply(currentSession, replytext);
     }
-    //FALLBACK FOR UNRECOGNIZED INTENTS
-    if(normalizedIntent ==="general_chat"){
-        replytext = `You said "${text}". I can help you create, update, delete, or list dues.`;
+
+    // TOP UPCOMING DUES INTENT LOGIC
+    if (normalizedIntent === "top_upcoming") {
+      const dues = await Due.find({ userId });
+      if (dues.length === 0) {
+        replytext = "You have no upcoming dues at the moment.";
+        return finalizeReply(currentSession, replytext);
+      }
+      const k = intentData.topK && intentData.topK > 0 ? intentData.topK : 3;
+      const sorted = dues.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+      const topDues = sorted.slice(0, k);
+      const listText = topDues.map((due, idx) => `${idx + 1}. ${due.title} for $${due.amount} due on ${new Date(due.dueDate).toLocaleDateString()}`).join(". ");
+      replytext = `Here are your top ${topDues.length} upcoming dues: ${listText}.`;
       return finalizeReply(currentSession, replytext);
     }
-    //DEFAULT FALLBACK
-    replytext="Sorry, I couldn't understand your request. Could you please rephrase?";
+
+    // LIST DUES INTENT LOGIC
+    if (normalizedIntent === "list_dues") {
+      const dues = await Due.find({ userId });
+      if (dues.length === 0) {
+        replytext = "You have no dues at the moment.";
+        return finalizeReply(currentSession, replytext);
+      }
+      const total = dues.reduce((sum, due) => sum + (Number(due.amount) || 0), 0);
+      const dueList = dues.slice(0, 5).map(due => `${due.title}: $${due.amount} due on ${new Date(due.dueDate).toLocaleDateString()}`).join(". ");
+      replytext = `You have ${dues.length} dues totaling $${total.toFixed(2)}. Here are your recent ones: ${dueList}.`;
+      return finalizeReply(currentSession, replytext);
+    }
+
+    // FINANCIAL ADVICE, GENERAL CHAT & SMART INSIGHTS
+    if (normalizedIntent === "financial_advice" || normalizedIntent === "general_chat") {
+      const dues = await Due.find({ userId });
+      replytext = await llmService.generateFinancialInsight(text, dues);
+      return finalizeReply(currentSession, replytext);
+    }
+
+    // DEFAULT FALLBACK -> Use LLM Financial Insight instead of generic error!
+    const dues = await Due.find({ userId });
+    replytext = await llmService.generateFinancialInsight(text, dues);
     return finalizeReply(currentSession, replytext);
     } catch (error) {
         console.error("Error processing voice message:", error);

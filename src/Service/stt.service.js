@@ -11,7 +11,8 @@ exports.speechToText = async (audioBuffer) => {
     try {
         // Validate that audioBuffer has content
         if (!audioBuffer || audioBuffer.length === 0) {
-            throw new Error("Audio buffer is empty. No audio was captured.");
+            console.log("STT Service - Audio buffer is empty");
+            return "";
         }
 
         console.log('STT Service - Audio buffer size:', audioBuffer.length, 'bytes');
@@ -34,12 +35,17 @@ exports.speechToText = async (audioBuffer) => {
         }
         
         if (response.data.error) {
+            if (response.data.error.toLowerCase().includes("no speech")) {
+                console.log("STT Service - No speech detected in audio");
+                return "";
+            }
             throw new Error(`Transcription error: ${response.data.error}`);
         }
         
         const text = response.data.text;
         if (!text) {
-            throw new Error("Transcription service returned empty text. Please speak clearly.");
+            console.log("STT Service - Empty text returned");
+            return "";
         }
         
         console.log('Transcription successful:', text.substring(0, 50) + '...');

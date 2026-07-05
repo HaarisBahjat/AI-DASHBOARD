@@ -128,9 +128,12 @@ const reminderHandler = async () => {
             ]
         }).limit(CRON_BATCH_LIMIT); // [E] batch cap
         console.log('Found overdueDues:', overdueDues.length);
-        for(const due of overdueDues){
+
+        // ── Step 1: Create individual DB reminders + WhatsApp per due ──────────
+        // (UI cards + WhatsApp messages are per-due so the user sees each item)
+        for (const due of overdueDues) {
             try {
-                await require('../Service/reminder.service').createReminder({
+                await require('../Service/reminder.service').createReminderNoCall({
                     userId: due.userId,
                     due: due,
                     dueId: due._id,
@@ -140,8 +143,36 @@ const reminderHandler = async () => {
                     metadata: {}
                 });
                 console.log('OVERDUE reminder created for due:', due._id);
-            } catch(err) {
+            } catch (err) {
                 console.error('Error creating OVERDUE reminder:', err.message);
+            }
+        }
+
+        // ── Step 2: ONE group voice call covering all overdue dues ─────────────
+        // Group dues by userId so each user gets exactly one call
+        if (overdueDues.length > 0) {
+            const byUser = {};
+            for (const due of overdueDues) {
+                const uid = String(due.userId);
+                if (!byUser[uid]) byUser[uid] = [];
+                byUser[uid].push(due);
+            }
+
+            const { User } = require('../models/db');
+            const twilioService = require('../Service/twilio.service');
+
+            for (const [userId, userDues] of Object.entries(byUser)) {
+                try {
+                    const user = await User.findById(userId).select('phone').lean();
+                    if (!user || !user.phone) {
+                        console.log(`[Twilio] No phone for user ${userId} — skipping group call.`);
+                        continue;
+                    }
+                    await twilioService.makeGroupVoiceCall(user.phone, userId, userDues);
+                    console.log(`[Twilio] Group call fired for user ${userId} — ${userDues.length} due(s)`);
+                } catch (err) {
+                    console.error(`[Twilio] Group call failed for user ${userId}:`, err.message);
+                }
             }
         }
     }

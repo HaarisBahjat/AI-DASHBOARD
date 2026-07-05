@@ -35,6 +35,8 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
     const audioChunksRef = useRef([]);
     const recognitionRef = useRef(null);
     const socketRef = useRef(null);
+    const streamRef = useRef(null);
+    const transcriptRef = useRef('');
 
     const [isRecording, setIsRecording] = useState(false);
     const [replyMessage, setReplyMessage] = useState('');
@@ -226,6 +228,7 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
             const t = Array.from(event.results)
                 .map(result => result[0].transcript)
                 .join(' ');
+            transcriptRef.current = t;
             setSpeechTranscript(t);
         };
 
@@ -256,6 +259,7 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
                     .map(result => result[0].transcript)
                     .join(' ')
                     .trim();
+                transcriptRef.current = finalText;
                 setSpeechTranscript(finalText);
             };
 
@@ -283,57 +287,96 @@ export default function VoiceAssistant({ userId, profile: _profile }) {
             return;
         }
 
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const recorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = recorder;
-        audioChunksRef.current = [];
-
-        const recognition = setupSpeechRecognition();
-        if (recognition) {
-            recognitionRef.current = recognition;
-            recognition.start();
+        // Clean up any existing microphone streams or recognition sessions
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+        }
+        if (recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch(e){}
+            recognitionRef.current = null;
         }
 
-        recorder.ondataavailable = (event) => {
-            audioChunksRef.current.push(event.data);
-        };
+        setSpeechTranscript('');
+        transcriptRef.current = '';
+        setError(null);
 
-        recorder.onstop = async () => {
-            if (recognitionRef.current) {
-                recognitionRef.current.stop();
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            streamRef.current = stream;
+            const recorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = recorder;
+            audioChunksRef.current = [];
+
+            const recognition = setupSpeechRecognition();
+            if (recognition) {
+                recognitionRef.current = recognition;
+                try { recognition.start(); } catch(e) { console.warn(e); }
             }
 
-            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-            const arrayBuffer = await audioBlob.arrayBuffer();
+            recorder.ondataavailable = (event) => {
+                if (event.data && event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
 
-            const userMessage = speechTranscript || '[Voice message]';
-            setMessages(prev => [...prev, {
-                type: 'user',
-                message: userMessage,
-                transcript: speechTranscript,
-                timestamp: new Date().toISOString(),
-            }]);
+            recorder.onstop = async () => {
+                // Release microphone tracks so the mic isn't locked on subsequent recordings
+                if (streamRef.current) {
+                    streamRef.current.getTracks().forEach(track => track.stop());
+                    streamRef.current = null;
+                }
+                if (recognitionRef.current) {
+                    try { recognitionRef.current.stop(); } catch(e){}
+                    recognitionRef.current = null;
+                }
 
-            if (!socketRef.current) {
-                setError('Realtime socket unavailable. Please refresh and try again.');
-                return;
-            }
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const arrayBuffer = await audioBlob.arrayBuffer();
 
-            socketRef.current.emit('voice-message', {
-                audioBuffer: Array.from(new Uint8Array(arrayBuffer)),
-                userId,
-                conversationId,
-                transcript: speechTranscript,
-            });
-        };
+                const finalTranscript = transcriptRef.current || '';
+                const userMessage = finalTranscript || '[Voice message]';
+                
+                setMessages(prev => [...prev, {
+                    type: 'user',
+                    message: userMessage,
+                    transcript: finalTranscript,
+                    timestamp: new Date().toISOString(),
+                }]);
 
-        recorder.start();
-        setIsRecording(true);
+                if (!socketRef.current) {
+                    setError('Realtime socket unavailable. Please refresh and try again.');
+                    return;
+                }
+
+                socketRef.current.emit('voice-message', {
+                    audioBuffer: Array.from(new Uint8Array(arrayBuffer)),
+                    userId,
+                    conversationId,
+                    transcript: finalTranscript,
+                });
+            };
+
+            recorder.start();
+            setIsRecording(true);
+        } catch (err) {
+            console.error('Failed to start recording:', err);
+            setError('Could not access microphone: ' + err.message);
+            setIsRecording(false);
+        }
     };
 
     const stopRecording = () => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
             mediaRecorderRef.current.stop();
+        }
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+        }
+        if (recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch(e){}
+            recognitionRef.current = null;
         }
         setIsRecording(false);
     };

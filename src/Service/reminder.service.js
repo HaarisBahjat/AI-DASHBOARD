@@ -1,6 +1,6 @@
 const Reminder = require("../models/db").Reminder;
 const ConversationSession = require("../models/db").ConversationSession;
-    // This service handles the creation of reminders and associated conversation sessions for dues.
+// This service handles the creation of reminders and associated conversation sessions for dues.
 const Conversation = require("../models/db").Conversation;
 const User = require("../models/db").User;
 const { textToSpeech } = require("./tts.service");
@@ -111,14 +111,14 @@ exports.createReminder = async ({
         reminderType,
         messageText,
         triggerSource,
-        metadata:{
-            amount : due.amount,
+        metadata: {
+            amount: due.amount,
             title: due.title,
             dueDate: due.dueDate,
             ...metadata
         }
     });
-    
+
     try {
         await ensureReminderConversationAndEmit({
             reminder,
@@ -126,7 +126,7 @@ exports.createReminder = async ({
             reminderType,
             messageText,
         });
-    } catch(err) {
+    } catch (err) {
         console.error(`Error creating conversation for reminder:`, err.message);
     }
 
@@ -152,3 +152,69 @@ exports.createReminder = async ({
 
     return reminder;
 }
+
+/**
+ * Same as createReminder but skips the Twilio voice call.
+ * Used by the overdue cron which fires ONE group call after processing all dues,
+ * instead of one call per due. WhatsApp messages are still sent per-due.
+ */
+exports.createReminderNoCall = async ({
+    userId, dueId, due, reminderType, messageText, triggerSource, metadata
+}) => {
+    const { start, end } = getDayBounds(new Date());
+    const existingReminder = await Reminder.findOne({
+        userId, dueId, reminderType,
+        createdAt: { $gte: start, $lte: end },
+    }).sort({ createdAt: -1 });
+
+    if (existingReminder) {
+        await ensureReminderConversationAndEmit({
+            reminder: existingReminder, due, reminderType,
+            messageText: existingReminder.messageText || messageText,
+        });
+        // Send WhatsApp if not yet sent today
+        if (!existingReminder.twilioSent) {
+            const user = await User.findById(userId).select('phone').lean();
+            if (user && user.phone) {
+                try {
+                    await twilioService.sendWhatsApp(user.phone,
+                        `🚨 *OVERDUE ALERT!*\nYour due *"${due.title}"* of $${due.amount} was due on *${new Date(due.dueDate).toDateString()}* and is now OVERDUE.\n\nReply *PAID* if you've paid or *SNOOZE <days>* to postpone.`
+                    );
+                    await Reminder.findByIdAndUpdate(existingReminder._id, { twilioSent: true });
+                } catch (err) {
+                    console.error(`[Twilio] WhatsApp failed for reminder ${existingReminder._id}:`, err.message);
+                }
+            }
+        }
+        return existingReminder;
+    }
+
+    const reminder = await Reminder.create({
+        userId, dueId, reminderType, messageText,
+        triggerSource, twilioSent: false,
+        metadata: { amount: due.amount, title: due.title, dueDate: due.dueDate, ...metadata }
+    });
+
+    try {
+        await ensureReminderConversationAndEmit({ reminder, due, reminderType, messageText });
+    } catch (err) {
+        console.error('Error creating conversation for reminder:', err.message);
+    }
+
+    // WhatsApp only — voice call handled by cron group call
+    try {
+        const user = await User.findById(userId).select('phone').lean();
+        if (user && user.phone) {
+            await twilioService.sendWhatsApp(user.phone,
+                `🚨 *OVERDUE ALERT!*\nYour due *"${due.title}"* of $${due.amount} was due on *${new Date(due.dueDate).toDateString()}* and is now OVERDUE.\n\nReply *PAID* if you've paid or *SNOOZE <days>* to postpone.`
+            );
+            await Reminder.findByIdAndUpdate(reminder._id, { twilioSent: true });
+        } else {
+            console.log(`[Twilio] No phone for user ${userId} — skipping WhatsApp.`);
+        }
+    } catch (err) {
+        console.error(`[Twilio] WhatsApp failed for reminder ${reminder._id}:`, err.message);
+    }
+
+    return reminder;
+};

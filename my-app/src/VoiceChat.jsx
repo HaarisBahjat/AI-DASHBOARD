@@ -232,6 +232,12 @@ function VoiceChat({ onLogout, profile }) {
   const streamRef = useRef(null);
   const audioRef = useRef(new Audio());
   const activeConversationIdRef = useRef(null);
+  const recognitionRef = useRef(null);
+  const transcriptRef = useRef('');
+  const isCancelledRef = useRef(false);
+  const [isScanningReceipt, setIsScanningReceipt] = useState(false);
+  const [scannedReceiptData, setScannedReceiptData] = useState(null);
+  const fileInputRef = useRef(null);
 
   const profileInitials = useMemo(() => {
     const displayName = profile?.name || 'User';
@@ -771,19 +777,66 @@ function VoiceChat({ onLogout, profile }) {
 
   const startRecording = async () => {
     try {
+      isCancelledRef.current = false;
+      transcriptRef.current = '';
+
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch(e){}
+        recognitionRef.current = null;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (isCancelledRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
 
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+        recognition.onresult = (event) => {
+          const t = Array.from(event.results)
+            .map((result) => result[0].transcript)
+            .join(' ');
+          transcriptRef.current = t;
+        };
+        recognitionRef.current = recognition;
+        try { recognition.start(); } catch(e){}
+      }
+
       mediaRecorder.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
       };
 
       mediaRecorder.onstop = () => {
-        sendAudioToServer();
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((track) => track.stop());
+          streamRef.current = null;
+        }
+        if (recognitionRef.current) {
+          try { recognitionRef.current.stop(); } catch(e){}
+          recognitionRef.current = null;
+        }
+        if (!isCancelledRef.current) {
+          sendAudioToServer();
+        }
       };
 
       mediaRecorder.start();
@@ -794,14 +847,20 @@ function VoiceChat({ onLogout, profile }) {
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
-      setIsRecording(false);
-
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
+    } else {
+      isCancelledRef.current = true;
     }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch(e){}
+      recognitionRef.current = null;
+    }
+    setIsRecording(false);
   };
 
   const sendAudioToServer = () => {
@@ -810,16 +869,23 @@ function VoiceChat({ onLogout, profile }) {
       return;
     }
 
-    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
     const reader = new FileReader();
 
     reader.onload = (event) => {
       const audioBuffer = new Uint8Array(event.target.result);
+      const finalTranscript = transcriptRef.current || '';
+
+      // Ignore phantom clicks or tiny glitch headers with no speech
+      if ((!audioBuffer || audioBuffer.length < 500) && !finalTranscript.trim()) {
+        setIsLoading(false);
+        return;
+      }
 
       const userMessage = {
         id: Date.now() + Math.random(),
         role: 'USER',
-        message: '[Audio message sent]',
+        message: finalTranscript || '[Audio message sent]',
         timestamp: new Date()
       };
 
@@ -838,7 +904,8 @@ function VoiceChat({ onLogout, profile }) {
       socket.emit('voice-message', {
         conversationId: activeConversationId,
         userId: localStorage.getItem('userId'),
-        audioBuffer: Array.from(audioBuffer)
+        audioBuffer: Array.from(audioBuffer),
+        transcript: finalTranscript
       });
     };
 
@@ -954,6 +1021,69 @@ function VoiceChat({ onLogout, profile }) {
       }
     } catch (error) {
       alert(`Network Error: ${error.message}`);
+    }
+  };
+
+  const handleReceiptUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsScanningReceipt(true);
+      setScannedReceiptData(null);
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        try {
+          const authToken = localStorage.getItem('authToken');
+          const res = await fetch(apiUrl('/api/dues/scan'), {
+            method: 'POST',
+            headers: getAuthHeaders(authToken),
+            body: JSON.stringify({ imageBase64: reader.result, mimeType: file.type })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.message || data.error || 'Failed to scan receipt');
+          }
+          setScannedReceiptData(data.data);
+        } catch (err) {
+          alert('Failed to scan receipt: ' + err.message);
+        } finally {
+          setIsScanningReceipt(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+      };
+    } catch (error) {
+      setIsScanningReceipt(false);
+      alert('Error reading file: ' + error.message);
+    }
+  };
+
+  const confirmScannedDue = async () => {
+    if (!scannedReceiptData) return;
+    try {
+      const authToken = localStorage.getItem('authToken');
+      const res = await fetch(apiUrl('/api/dues'), {
+        method: 'POST',
+        headers: getAuthHeaders(authToken),
+        body: JSON.stringify({
+          title: scannedReceiptData.title,
+          amount: scannedReceiptData.amount,
+          dueDate: scannedReceiptData.dueDate,
+          category: scannedReceiptData.category
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'Failed to create due');
+      }
+
+      setScannedReceiptData(null);
+      await refreshDues(authToken);
+      await refreshConversations(authToken);
+      alert('✅ Due created successfully from scanned receipt!');
+    } catch (err) {
+      alert('Failed to create due: ' + err.message);
     }
   };
 
@@ -1293,9 +1423,19 @@ function VoiceChat({ onLogout, profile }) {
 
         {activeTab === 'finance' ? (
           <div className="finance-dashboard glass-panel rounded-2xl shadow-xl">
-            <div className="finance-head">
-              <h2>Finance</h2>
-              <p>{isAnalyticsLoading ? 'Refreshing finance metrics...' : 'Operational billing and collections overview.'}</p>
+            <div className="finance-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h2>Finance</h2>
+                <p>{isAnalyticsLoading ? 'Refreshing finance metrics...' : 'Operational billing and collections overview.'}</p>
+              </div>
+              <button 
+                className="new-conversation-btn" 
+                style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontWeight: 600, cursor: 'pointer', margin: 0 }} 
+                onClick={() => fileInputRef.current?.click()} 
+                disabled={isScanningReceipt}
+              >
+                {isScanningReceipt ? '🤖 Scanning...' : '📸 AI Scan Bill / Receipt'}
+              </button>
             </div>
 
             <div className="finance-kpis">
@@ -1601,9 +1741,26 @@ function VoiceChat({ onLogout, profile }) {
                 <p>Review and manage your AI voice interactions.</p>
               </div>
 
-              <button className="new-conversation-btn" onClick={createConversation} disabled={!isConnected}>
-                + Add dues
-              </button>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                <button className="new-conversation-btn" style={{ flex: 1, marginBottom: 0 }} onClick={createConversation} disabled={!isConnected}>
+                  + Add dues
+                </button>
+                <button 
+                  className="new-conversation-btn" 
+                  style={{ flex: 1, marginBottom: 0, background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: '#fff', border: 'none' }} 
+                  onClick={() => fileInputRef.current?.click()} 
+                  disabled={isScanningReceipt}
+                >
+                  {isScanningReceipt ? '🤖 Scanning...' : '📸 Scan Receipt'}
+                </button>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  accept="image/*,application/pdf" 
+                  style={{ display: 'none' }} 
+                  onChange={handleReceiptUpload} 
+                />
+              </div>
               {voiceSetupHint && <div className="hint-line">{voiceSetupHint}</div>}
 
               <div className="conversations-list">
@@ -1701,6 +1858,93 @@ function VoiceChat({ onLogout, profile }) {
         )}
         </div>
       </main>
+
+      {scannedReceiptData && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div className="glass-panel" style={{
+            width: '90%', maxWidth: '480px', padding: '24px', borderRadius: '20px',
+            border: '1px solid rgba(168, 85, 247, 0.4)', boxShadow: '0 0 30px rgba(168, 85, 247, 0.25)',
+            color: '#fff', background: '#111827'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+              <span style={{ fontSize: '28px' }}>🤖</span>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '20px', background: 'linear-gradient(90deg, #a855f7, #ec4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  Gemini AI Vision OCR
+                </h3>
+                <p style={{ margin: 0, fontSize: '12px', color: '#9ca3af' }}>Extracted from your receipt image</p>
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '10px', marginBottom: '16px', fontSize: '13px', fontStyle: 'italic', color: '#d1d5db', borderLeft: '3px solid #a855f7' }}>
+              "{scannedReceiptData.summary}"
+            </div>
+
+            <div style={{ display: 'grid', gap: '12px', marginBottom: '20px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Bill Title / Vendor</label>
+                <input 
+                  type="text" 
+                  value={scannedReceiptData.title || ''} 
+                  onChange={(e) => setScannedReceiptData({ ...scannedReceiptData, title: e.target.value })}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #374151', background: '#1f2937', color: '#fff', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Amount ($)</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    value={scannedReceiptData.amount || 0} 
+                    onChange={(e) => setScannedReceiptData({ ...scannedReceiptData, amount: parseFloat(e.target.value) || 0 })}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #374151', background: '#1f2937', color: '#fff', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Due Date</label>
+                  <input 
+                    type="date" 
+                    value={scannedReceiptData.dueDate || ''} 
+                    onChange={(e) => setScannedReceiptData({ ...scannedReceiptData, dueDate: e.target.value })}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #374151', background: '#1f2937', color: '#fff', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', color: '#9ca3af', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Category</label>
+                <input 
+                  type="text" 
+                  value={scannedReceiptData.category || 'general'} 
+                  onChange={(e) => setScannedReceiptData({ ...scannedReceiptData, category: e.target.value })}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #374151', background: '#1f2937', color: '#fff', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button 
+                type="button" 
+                onClick={() => setScannedReceiptData(null)}
+                style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #4b5563', background: 'transparent', color: '#e5e7eb', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Discard
+              </button>
+              <button 
+                type="button" 
+                onClick={confirmScannedDue}
+                style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', cursor: 'pointer', fontWeight: 600, boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}
+              >
+                ✅ Confirm & Add Due
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <audio ref={audioRef} />
     </div>

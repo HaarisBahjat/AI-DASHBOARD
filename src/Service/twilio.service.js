@@ -111,6 +111,49 @@ exports.makeVoiceCall = async (to, params = {}) => {
     }
 };
 
+/**
+ * Initiate a single outbound call that covers MULTIPLE overdue dues.
+ * All due details are passed as a JSON array in the query string so
+ * the TwiML route can build one cohesive opening message.
+ *
+ * @param {string}   to      - E.164 phone number
+ * @param {string}   userId  - MongoDB user _id
+ * @param {object[]} dues    - Array of due documents { _id, title, amount, dueDate }
+ */
+exports.makeGroupVoiceCall = async (to, userId, dues = []) => {
+    const duesPayload = dues.map(d => ({
+        dueId:   String(d._id),
+        title:   d.title,
+        amount:  d.amount,
+        dueDate: new Date(d.dueDate).toDateString(),
+    }));
+
+    const qs = new URLSearchParams({
+        userId: String(userId),
+        dues:   JSON.stringify(duesPayload),   // array of dues for the TwiML
+    }).toString();
+
+    const twimlUrl       = `${BASE_URL}/api/twilio/voice-twiml-group?${qs}`;
+    const statusCallback = `${BASE_URL}/api/twilio/voice-status`;
+
+    try {
+        const call = await getClient().calls.create({
+            to,
+            from: FROM_SMS,
+            url:                  twimlUrl,
+            method:               'GET',
+            statusCallback,
+            statusCallbackMethod: 'POST',
+            statusCallbackEvent:  ['initiated', 'ringing', 'answered', 'completed'],
+        });
+        console.log(`[Twilio Group Call] Initiated to ${to} for ${dues.length} due(s) — SID: ${call.sid}`);
+        return call;
+    } catch (err) {
+        logTwilioError('Group Voice Call', err);
+        throw err;
+    }
+};
+
 
 // ─── High-level reminder dispatcher ────────────────────────────────────────
 

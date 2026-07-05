@@ -21,7 +21,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true
     },
-    
+
     refreshToken: {
       type: String
     },
@@ -96,13 +96,13 @@ const duesSchema = new mongoose.Schema(
 const reminderSchema = new mongoose.Schema({
 
   userId: {
-    type: mongoose.Schema.Types.ObjectId, 
+    type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: true
   },
   dueId: {
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: "Dues",  
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Dues",
     required: true
   },
   reminderType: {
@@ -163,22 +163,22 @@ const conversationSessionSchema = new mongoose.Schema({
     default: "STARTED"
   },
   clarificationState: {
-  type: String,
-  enum: ["NONE", "AWAITING"],
-  default: "NONE"
-},
+    type: String,
+    enum: ["NONE", "AWAITING"],
+    default: "NONE"
+  },
 
-pendingIntent: {
-  type: String,
-  default: null
-},
+  pendingIntent: {
+    type: String,
+    default: null
+  },
 
-pendingData: {
-  type: Object,
-  default: null
-},
+  pendingData: {
+    type: Object,
+    default: null
+  },
   finalOutcome: {
-    action:{
+    action: {
       type: String,
       enum: ["PAID", "SNOOZE", "DISMISSED", "NO_RESPONSE"],
     },
@@ -193,7 +193,7 @@ pendingData: {
 
 
 const conversationMessageSchema = new mongoose.Schema({
- conversationId: {
+  conversationId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "ConversationSession",
     required: true
@@ -208,9 +208,9 @@ const conversationMessageSchema = new mongoose.Schema({
     required: true
   },
   rawAudioUrl: {
-      type: String // optional, future voice storage
-    }
-},{ timestamps: true });
+    type: String // optional, future voice storage
+  }
+}, { timestamps: true });
 
 // Payment records for audit, idempotency, and reconciliation with Razorpay
 const paymentSchema = new mongoose.Schema({
