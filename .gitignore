@@ -50,4 +50,8 @@ src/audio/
 *.mp3
 *.wav
 *.webm
-*.node
+*.node
+
+# Node modules (always exclude)
+node_modules/
+
