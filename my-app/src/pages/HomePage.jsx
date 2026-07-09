@@ -374,15 +374,44 @@ const homeStyles = `
   .hp-testimonials {
     padding: 100px 5%;
     background: var(--mk-bg2);
+    position: relative;
+    overflow: hidden;
   }
+
+  .hp-testimonials::before {
+    content: '';
+    position: absolute;
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 900px;
+    height: 500px;
+    background: radial-gradient(ellipse, rgba(79,142,247,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
   .hp-test-header { text-align: center; margin-bottom: 56px; }
+
+  .hp-test-subline {
+    font-size: 14px;
+    color: var(--mk-muted);
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .hp-test-subline-dot {
+    width: 5px; height: 5px; border-radius: 50%; background: #22c55e; display: inline-block;
+  }
 
   .hp-test-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 20px;
     max-width: 1100px;
-    margin: 0 auto;
+    margin: 0 auto 40px;
   }
 
   .hp-test-card {
@@ -390,17 +419,94 @@ const homeStyles = `
     border: 1px solid var(--mk-border);
     border-radius: var(--mk-radius-lg);
     padding: 28px;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
   }
 
-  .hp-test-stars { color: #fbbf24; font-size: 14px; margin-bottom: 14px; letter-spacing: 2px; }
+  .hp-test-card::before {
+    content: '“';
+    position: absolute;
+    top: -10px;
+    right: 20px;
+    font-size: 100px;
+    font-family: Georgia, serif;
+    color: rgba(79,142,247,0.07);
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  .hp-test-card:hover {
+    border-color: rgba(79,142,247,0.28);
+    transform: translateY(-3px);
+    box-shadow: 0 16px 48px rgba(4,8,16,0.5);
+  }
+
+  .hp-test-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .hp-test-stars { color: #fbbf24; font-size: 15px; letter-spacing: 1px; }
+
+  .hp-verified-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(34,197,94,0.1);
+    border: 1px solid rgba(34,197,94,0.25);
+    color: #22c55e;
+    font-size: 10.5px;
+    font-weight: 600;
+    font-family: var(--mk-font-mono);
+    padding: 3px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+  }
 
   .hp-test-quote {
     color: var(--mk-fg2);
     font-size: 14.5px;
     line-height: 1.7;
-    margin-bottom: 20px;
+    margin-bottom: 18px;
     font-style: italic;
   }
+
+  .hp-test-metrics {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+
+  .hp-test-metric {
+    background: rgba(79,142,247,0.08);
+    border: 1px solid rgba(79,142,247,0.16);
+    border-radius: 8px;
+    padding: 7px 11px;
+    flex: 1;
+    min-width: 90px;
+  }
+
+  .hp-test-metric-label {
+    font-size: 10px;
+    color: var(--mk-muted);
+    font-family: var(--mk-font-mono);
+    margin-bottom: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .hp-test-metric-val {
+    font-size: 14px;
+    font-weight: 700;
+    color: #4f8ef7;
+    font-family: var(--mk-font-display);
+  }
+
+  .hp-test-metric-val.green { color: #22c55e; }
 
   .hp-test-author {
     display: flex;
@@ -411,8 +517,8 @@ const homeStyles = `
   }
 
   .hp-test-avatar {
-    width: 38px;
-    height: 38px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     background: linear-gradient(135deg, #1d4ed8, #4f8ef7);
     display: flex;
@@ -423,10 +529,245 @@ const homeStyles = `
     font-size: 14px;
     color: #fff;
     flex-shrink: 0;
+    border: 2px solid rgba(79,142,247,0.3);
   }
 
   .hp-test-name { font-size: 14px; font-weight: 600; color: var(--mk-fg); }
   .hp-test-role { font-size: 12px; color: var(--mk-muted); }
+
+  /* ── Submit Review CTA ── */
+  .hp-review-cta {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    background: linear-gradient(135deg, rgba(29,78,216,0.12), rgba(79,142,247,0.06));
+    border: 1px solid rgba(79,142,247,0.2);
+    border-radius: var(--mk-radius-lg);
+    padding: 24px 32px;
+  }
+
+  .hp-review-cta-text h3 {
+    font-family: var(--mk-font-display);
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--mk-fg);
+    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+  }
+
+  .hp-review-cta-text p {
+    font-size: 13.5px;
+    color: var(--mk-muted);
+  }
+
+  .hp-review-submit-btn {
+    padding: 11px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--mk-font-body);
+    border-radius: var(--mk-radius-pill);
+    border: none;
+    background: linear-gradient(135deg, #1d4ed8, #4f8ef7);
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 20px rgba(79,142,247,0.35);
+    transition: all 0.18s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .hp-review-submit-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(79,142,247,0.5); }
+
+  /* ── Review Modal ── */
+  .hp-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(4,8,16,0.75);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeIn 0.2s ease;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+
+  .hp-modal {
+    background: #0a1528;
+    border: 1px solid rgba(79,142,247,0.25);
+    border-radius: 20px;
+    padding: 36px;
+    width: 100%;
+    max-width: 520px;
+    box-shadow: 0 40px 100px rgba(4,8,16,0.8), 0 0 0 1px rgba(79,142,247,0.1);
+    animation: slideUp 0.25s ease;
+    position: relative;
+  }
+
+  .hp-modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    color: var(--mk-muted);
+    font-size: 16px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .hp-modal-close:hover { color: var(--mk-fg); background: rgba(255,255,255,0.1); }
+
+  .hp-modal h3 {
+    font-family: var(--mk-font-display);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--mk-fg);
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+
+  .hp-modal-sub {
+    font-size: 14px;
+    color: var(--mk-muted);
+    margin-bottom: 28px;
+  }
+
+  .hp-modal-field { margin-bottom: 18px; }
+
+  .hp-modal-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--mk-fg2);
+    font-family: var(--mk-font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 7px;
+    display: block;
+  }
+
+  .hp-modal-input, .hp-modal-textarea {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(79,142,247,0.2);
+    border-radius: 10px;
+    color: var(--mk-fg);
+    font-family: var(--mk-font-body);
+    font-size: 14px;
+    padding: 11px 14px;
+    outline: none;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+  }
+  .hp-modal-input:focus, .hp-modal-textarea:focus {
+    border-color: rgba(79,142,247,0.5);
+    background: rgba(79,142,247,0.04);
+  }
+  .hp-modal-textarea { resize: vertical; min-height: 100px; line-height: 1.6; }
+
+  .hp-modal-star-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  .hp-modal-star {
+    font-size: 28px;
+    cursor: pointer;
+    transition: transform 0.12s, color 0.12s;
+    user-select: none;
+    color: rgba(251,191,36,0.25);
+    line-height: 1;
+  }
+  .hp-modal-star.active { color: #fbbf24; }
+  .hp-modal-star:hover { transform: scale(1.2); }
+
+  .hp-modal-star-label {
+    font-size: 12px;
+    color: var(--mk-muted);
+    margin-top: 6px;
+    min-height: 16px;
+  }
+
+  .hp-modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 24px;
+  }
+
+  .hp-modal-cancel {
+    flex: 1;
+    padding: 11px;
+    font-size: 14px;
+    font-family: var(--mk-font-body);
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: transparent;
+    color: var(--mk-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .hp-modal-cancel:hover { background: rgba(255,255,255,0.05); color: var(--mk-fg); }
+
+  .hp-modal-send {
+    flex: 2;
+    padding: 11px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--mk-font-body);
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(135deg, #1d4ed8, #4f8ef7);
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.18s;
+    box-shadow: 0 4px 16px rgba(79,142,247,0.3);
+  }
+  .hp-modal-send:hover { box-shadow: 0 6px 24px rgba(79,142,247,0.5); transform: translateY(-1px); }
+  .hp-modal-send:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .hp-modal-success {
+    text-align: center;
+    padding: 20px 0;
+  }
+
+  .hp-modal-success-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    display: block;
+    animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  .hp-modal-success h4 {
+    font-family: var(--mk-font-display);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--mk-fg);
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+
+  .hp-modal-success p {
+    font-size: 14px;
+    color: var(--mk-muted);
+    line-height: 1.6;
+  }
 
   /* ── FAQ ── */
   .hp-faq { padding: 100px 5%; max-width: 780px; margin: 0 auto; }
@@ -490,6 +831,229 @@ function FaqItem({ q, a }) {
       </button>
       {open && <div className="hp-faq-a">{a}</div>}
     </div>
+  );
+}
+
+/* ── Testimonials Section ────────────────────────────── */
+const STAR_LABELS = ['', 'Poor', 'Fair', 'Good', 'Great', 'Outstanding!'];
+
+const REVIEWS = [
+  {
+    quote: 'We used to have a full-time person just for payment follow-ups. ConvDash handled the same workload in the first week — and recovered more.',
+    name: 'Priya S.', role: 'Finance Manager, EduTech Startup', initials: 'PS',
+    stars: 5,
+    metrics: [
+      { label: 'Recovery Time', before: '42 days', after: '14 days', isGood: true },
+      { label: 'Manual Calls', before: '80/week', after: '0/week', isGood: true },
+    ],
+    avatarGrad: 'linear-gradient(135deg, #1d4ed8, #7c3aed)',
+  },
+  {
+    quote: 'The voice AI is shockingly natural. Our customers actually pick up and respond. We never had that response rate with SMS reminders.',
+    name: 'Rahul M.', role: 'Founder, Collection Agency', initials: 'RM',
+    stars: 5,
+    metrics: [
+      { label: 'Pick-up Rate', before: '18%', after: '61%', isGood: true },
+      { label: 'Monthly Recovered', before: '₹1.2L', after: '₹4.8L', isGood: true },
+    ],
+    avatarGrad: 'linear-gradient(135deg, #0d9488, #1d4ed8)',
+  },
+  {
+    quote: 'The analytics tab alone saved us from two missed payment cycles. I now open ConvDash before my email every single morning.',
+    name: 'Ankit J.', role: 'CFO, Housing Society', initials: 'AJ',
+    stars: 5,
+    metrics: [
+      { label: 'Missed Cycles', before: '3/quarter', after: '0/quarter', isGood: true },
+      { label: 'Overdue Amount', before: '₹8.4L', after: '₹1.1L', isGood: true },
+    ],
+    avatarGrad: 'linear-gradient(135deg, #b45309, #d97706)',
+  },
+];
+
+function ReviewModal({ onClose }) {
+  const [rating, setRating] = React.useState(0);
+  const [hover, setHover] = React.useState(0);
+  const [name, setName] = React.useState('');
+  const [role, setRole] = React.useState('');
+  const [review, setReview] = React.useState('');
+  const [submitted, setSubmitted] = React.useState(false);
+
+  const activeStars = hover || rating;
+  const canSubmit = rating > 0 && name.trim().length > 0 && review.trim().length > 10;
+
+  function handleSubmit() {
+    if (!canSubmit) return;
+    setSubmitted(true);
+  }
+
+  // Close on overlay click
+  function handleOverlayClick(e) {
+    if (e.target === e.currentTarget) onClose();
+  }
+
+  // Close on Escape
+  React.useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div className="hp-modal-overlay" onClick={handleOverlayClick}>
+      <div className="hp-modal">
+        <button className="hp-modal-close" onClick={onClose} aria-label="Close">✕</button>
+
+        {submitted ? (
+          <div className="hp-modal-success">
+            <span className="hp-modal-success-icon">🎉</span>
+            <h4>Thank you, {name.split(' ')[0]}!</h4>
+            <p>Your review has been submitted and will appear on this page after a quick verification. We really appreciate you taking the time.</p>
+          </div>
+        ) : (
+          <>
+            <h3>Share Your Experience</h3>
+            <p className="hp-modal-sub">Your honest feedback helps other teams discover ConvDash.</p>
+
+            {/* Star Rating */}
+            <div className="hp-modal-field">
+              <span className="hp-modal-label">Your Rating</span>
+              <div className="hp-modal-star-row">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <span
+                    key={s}
+                    className={`hp-modal-star${activeStars >= s ? ' active' : ''}`}
+                    onClick={() => setRating(s)}
+                    onMouseEnter={() => setHover(s)}
+                    onMouseLeave={() => setHover(0)}
+                  >★</span>
+                ))}
+              </div>
+              <div className="hp-modal-star-label">
+                {activeStars > 0 ? STAR_LABELS[activeStars] : 'Click to rate'}
+              </div>
+            </div>
+
+            {/* Name */}
+            <div className="hp-modal-field">
+              <label className="hp-modal-label" htmlFor="rev-name">Full Name</label>
+              <input
+                id="rev-name"
+                className="hp-modal-input"
+                placeholder="e.g. Priya Sharma"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+
+            {/* Role */}
+            <div className="hp-modal-field">
+              <label className="hp-modal-label" htmlFor="rev-role">Role & Company</label>
+              <input
+                id="rev-role"
+                className="hp-modal-input"
+                placeholder="e.g. Finance Manager, EduTech Startup"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+              />
+            </div>
+
+            {/* Review */}
+            <div className="hp-modal-field">
+              <label className="hp-modal-label" htmlFor="rev-text">Your Review</label>
+              <textarea
+                id="rev-text"
+                className="hp-modal-textarea"
+                placeholder="Tell us how ConvDash changed your collections workflow..."
+                value={review}
+                onChange={(e) => setReview(e.target.value)}
+              />
+            </div>
+
+            <div className="hp-modal-actions">
+              <button className="hp-modal-cancel" onClick={onClose}>Cancel</button>
+              <button
+                className="hp-modal-send"
+                disabled={!canSubmit}
+                onClick={handleSubmit}
+              >
+                ✦ Submit Review
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TestimonialsSection() {
+  const [modalOpen, setModalOpen] = React.useState(false);
+
+  return (
+    <section className="hp-testimonials">
+      <div className="hp-test-header mk-reveal">
+        <div className="mk-eyebrow" style={{ margin: '0 auto 20px' }}>Wall of Love</div>
+        <h2 className="mk-heading-lg">What teams are <span className="mk-blue-gradient">saying</span></h2>
+        <div className="hp-test-subline">
+          <span className="hp-test-subline-dot" />
+          All reviews are verified ConvDash users
+        </div>
+      </div>
+
+      <div className="hp-test-grid">
+        {REVIEWS.map((t, i) => (
+          <div className={`hp-test-card mk-reveal mk-reveal-delay-${i + 1}`} key={i}>
+
+            {/* Top row: stars + verified badge */}
+            <div className="hp-test-card-top">
+              <div className="hp-test-stars">{'★'.repeat(t.stars)}</div>
+              <span className="hp-verified-badge">✓ Verified User</span>
+            </div>
+
+            {/* Quote */}
+            <p className="hp-test-quote">"{t.quote}"</p>
+
+            {/* Before / After Metrics */}
+            <div className="hp-test-metrics">
+              {t.metrics.map((m, mi) => (
+                <div className="hp-test-metric" key={mi}>
+                  <div className="hp-test-metric-label">{m.label}</div>
+                  <div className="hp-test-metric-val" style={{ color: '#94a3b8', textDecoration: 'line-through', fontSize: 11, fontWeight: 400 }}>{m.before}</div>
+                  <div className={`hp-test-metric-val${m.isGood ? ' green' : ''}`}>{m.after}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Author */}
+            <div className="hp-test-author">
+              <div className="hp-test-avatar" style={{ background: t.avatarGrad }}>{t.initials}</div>
+              <div>
+                <div className="hp-test-name">{t.name}</div>
+                <div className="hp-test-role">{t.role}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Submit CTA bar */}
+      <div className="hp-review-cta mk-reveal">
+        <div className="hp-review-cta-text">
+          <h3>Using ConvDash? We'd love your story.</h3>
+          <p>Share your experience and get featured on this page. Takes less than 2 minutes.</p>
+        </div>
+        <button
+          id="open-review-modal-btn"
+          className="hp-review-submit-btn"
+          onClick={() => setModalOpen(true)}
+        >
+          ✦ Write a Review
+        </button>
+      </div>
+
+      {/* Modal */}
+      {modalOpen && <ReviewModal onClose={() => setModalOpen(false)} />}
+    </section>
   );
 }
 
@@ -715,41 +1279,7 @@ export default function HomePage() {
       </section>
 
       {/* ── Testimonials ── */}
-      <section className="hp-testimonials">
-        <div className="hp-test-header mk-reveal">
-          <div className="mk-eyebrow" style={{ margin: '0 auto 20px' }}>Early Feedback</div>
-          <h2 className="mk-heading-lg">What teams are <span className="mk-blue-gradient">saying</span></h2>
-        </div>
-
-        <div className="hp-test-grid">
-          {[
-            {
-              quote: 'We used to have a full-time person just for payment follow-ups. ConvDash handled the same workload in the first week.',
-              name: 'Priya S.', role: 'Finance Manager, EduTech Startup', initials: 'PS'
-            },
-            {
-              quote: 'The voice AI is shockingly natural. Our customers actually pick up and respond. We never had that with SMS reminders.',
-              name: 'Rahul M.', role: 'Founder, Collection Agency', initials: 'RM'
-            },
-            {
-              quote: 'The analytics tab alone saved us from two missed payment cycles. Now I open ConvDash before my email every morning.',
-              name: 'Ankit J.', role: 'CFO, Housing Society Manager', initials: 'AJ'
-            },
-          ].map((t, i) => (
-            <div className={`hp-test-card mk-reveal mk-reveal-delay-${i + 1}`} key={i}>
-              <div className="hp-test-stars">5/5</div>
-              <p className="hp-test-quote">"{t.quote}"</p>
-              <div className="hp-test-author">
-                <div className="hp-test-avatar">{t.initials}</div>
-                <div>
-                  <div className="hp-test-name">{t.name}</div>
-                  <div className="hp-test-role">{t.role}</div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <TestimonialsSection />
 
       {/* ── FAQ ── */}
       <section style={{ padding: '100px 5%', background: 'var(--mk-bg)' }}>

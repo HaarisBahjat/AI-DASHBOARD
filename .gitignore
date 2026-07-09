@@ -17,9 +17,8 @@ pids
 coverage/
 *.lcov
 
-# Build output
-dist/
-build/
+# Build output (my-app/dist is built into /public which IS committed for HuggingFace)
+my-app/dist/
 
 # Dependency directories
 jspm_packages/
