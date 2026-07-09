@@ -1315,7 +1315,7 @@ function VoiceChat({ onLogout, profile }) {
       {/* Sidebar */}
       <aside className={`h-full glass-panel border-r border-outline-variant dark:border-outline-variant-dark flex-col gap-stack-md transition-all duration-300 shrink-0 ${
         isSidebarCollapsed 
-          ? 'hidden md:flex md:w-20 md:p-3 md:items-center md:relative md:z-30' 
+          ? 'hidden w-0 p-0 border-none overflow-hidden' 
           : 'flex fixed inset-y-0 left-0 z-40 w-[280px] p-6 md:relative md:w-[280px] md:z-30 shadow-2xl md:shadow-none bg-surface dark:bg-surface-dark md:bg-transparent'
       }`}>
         <div className={`flex items-center gap-stack-sm mb-stack-lg overflow-hidden ${isSidebarCollapsed ? 'justify-center w-full' : ''}`}>
