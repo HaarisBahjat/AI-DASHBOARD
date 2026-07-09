@@ -29,9 +29,19 @@ const devOrigins = [
     'http://127.0.0.1:3000',
     'http://localhost:4173',
     'http://127.0.0.1:4173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5174',
 ];
+
+// Production origins always allowed (HuggingFace Space + Vercel frontend)
+const productionOrigins = [
+    'https://harry404-conv-backend.hf.space',
+    'https://conv-dash.vercel.app',
+];
+
 const allowedOrigins = new Set([
     ...configuredOrigins,
+    ...productionOrigins,
     ...(process.env.NODE_ENV === 'production' ? [] : devOrigins),
 ]);
 
