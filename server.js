@@ -49,6 +49,9 @@ const allowedOrigins = new Set([
 
 
 const app = express();
+// Trust the first proxy hop (required on HuggingFace / Vercel / any reverse-proxy host)
+// so that express-rate-limit correctly reads the real client IP from X-Forwarded-For
+app.set('trust proxy', 1);
 
 const server = http.createServer(app);
 const io = new Server(server, {
