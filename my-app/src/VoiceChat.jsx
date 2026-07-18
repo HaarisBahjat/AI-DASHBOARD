@@ -2000,46 +2000,53 @@ function VoiceChat({ onLogout, profile }) {
                   </div>
 
                   <div className="controls">
-                    {/* ── Text Input Row ── */}
-                    <div className="text-input-row">
+                    {/* ── WhatsApp-style single bar ── */}
+                    <div className="wa-input-bar">
                       <textarea
                         ref={textInputRef}
                         id="chat-text-input"
                         className="chat-text-input"
                         rows={1}
-                        placeholder="Type a message or ask the AI…"
+                        placeholder={isRecording ? '🔴 Recording…' : 'Message or hold 🎤 to speak…'}
                         value={textInput}
                         onChange={(e) => setTextInput(e.target.value)}
                         onKeyDown={handleTextKeyDown}
                         disabled={isLoading || !activeConversationId || !isConnected}
                         aria-label="Type a message"
                       />
+
+                      {/* Send button — shown when text is present */}
                       <button
                         id="chat-send-btn"
                         type="button"
-                        className="chat-send-btn"
+                        className={`wa-action-btn send-btn ${textInput.trim() ? 'visible' : 'hidden'}`}
                         onClick={sendTextMessage}
                         disabled={!textInput.trim() || isLoading || !activeConversationId || !isConnected}
                         aria-label="Send message"
+                        tabIndex={textInput.trim() ? 0 : -1}
                       >
-                        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>send</span>
+                        <span className="material-symbols-outlined">send</span>
+                      </button>
+
+                      {/* Mic button — shown when text box is empty */}
+                      <button
+                        type="button"
+                        className={`wa-action-btn mic-btn ${isRecording ? 'recording' : ''} ${textInput.trim() ? 'hidden' : 'visible'}`}
+                        onMouseDown={!textInput.trim() ? startRecording : undefined}
+                        onMouseUp={!textInput.trim() ? stopRecording : undefined}
+                        onTouchStart={!textInput.trim() ? startRecording : undefined}
+                        onTouchEnd={!textInput.trim() ? stopRecording : undefined}
+                        disabled={!isConnected || isLoading || !activeConversationId}
+                        aria-label={isRecording ? 'Recording in progress' : 'Hold to record voice'}
+                        tabIndex={textInput.trim() ? -1 : 0}
+                      >
+                        <span className="material-symbols-outlined">
+                          {isRecording ? 'radio_button_checked' : 'mic'}
+                        </span>
                       </button>
                     </div>
 
-                    {/* ── Voice Record Button ── */}
-                    <button
-                      className={`record-btn ${isRecording ? 'recording' : ''}`}
-                      onMouseDown={startRecording}
-                      onMouseUp={stopRecording}
-                      onTouchStart={startRecording}
-                      onTouchEnd={stopRecording}
-                      disabled={!isConnected || isLoading || !activeConversationId}
-                      aria-label={isRecording ? 'Recording in progress' : 'Hold to record voice'}
-                    >
-                      <span className="record-dot" aria-hidden="true"></span>
-                      {isRecording ? 'Recording...' : 'Hold to Record'}
-                    </button>
-
+                    {/* ── Compact action strip ── */}
                     <div className="action-buttons">
                       <button className="action-btn paid" onClick={() => completeConversation('PAID')} disabled={!activeConversationId}>Mark Paid</button>
                       <button className="action-btn snooze" onClick={() => completeConversation('SNOOZE')} disabled={!activeConversationId}>Snooze</button>
