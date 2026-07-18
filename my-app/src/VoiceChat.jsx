@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import { ArcElement, Chart as ChartJS, Legend, Tooltip } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
@@ -227,6 +227,12 @@ function VoiceChat({ onLogout, profile }) {
   const [financeActionLoadingId, setFinanceActionLoadingId] = useState(null);
   const [financeActionNotice, setFinanceActionNotice] = useState('');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  // ── Text input state ──────────────────────────────────────────────────────
+  const [textInput, setTextInput] = useState('');
+  // ── Notification center state ─────────────────────────────────────────────
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const streamRef = useRef(null);
@@ -238,6 +244,9 @@ function VoiceChat({ onLogout, profile }) {
   const [isScanningReceipt, setIsScanningReceipt] = useState(false);
   const [scannedReceiptData, setScannedReceiptData] = useState(null);
   const fileInputRef = useRef(null);
+  const notifPanelRef = useRef(null);
+  const messagesEndRef = useRef(null);
+  const textInputRef = useRef(null);
 
   const profileInitials = useMemo(() => {
     const displayName = profile?.name || 'User';
@@ -697,6 +706,14 @@ function VoiceChat({ onLogout, profile }) {
 
       if (result.audioFile || result.audioBuffer) {
         playAudioResponse(result);
+      } else if (result.message) {
+        // Browser TTS fallback when server TTS is unavailable
+        try {
+          const utterance = new SpeechSynthesisUtterance(result.message);
+          utterance.rate = 1.0;
+          utterance.pitch = 1.0;
+          window.speechSynthesis.speak(utterance);
+        } catch (_) { /* no-op */ }
       }
     });
 
@@ -721,9 +738,8 @@ function VoiceChat({ onLogout, profile }) {
         }));
       }
     });
-      // Listen for reminder events to inject system messages and play TTS audio.
+      // Listen for reminder events: inject system messages, push to notification center, and play TTS audio.
     newSocket.on('reminder-voice', (payload) => {
-      // Reminder messages are injected as SYSTEM messages into the relevant conversation thread.
       const reminderMessage = {
         id: payload?.reminderId || Date.now() + Math.random(),
         role: 'SYSTEM',
@@ -731,17 +747,25 @@ function VoiceChat({ onLogout, profile }) {
         timestamp: payload?.createdAt ? new Date(payload.createdAt) : new Date(),
       };
 
+      // Push to notification center
+      const notif = {
+        id: payload?.reminderId || `notif-${Date.now()}`,
+        type: 'reminder',
+        title: 'Due Reminder',
+        message: payload?.message || 'You have a pending due reminder.',
+        timestamp: new Date(),
+        read: false,
+      };
+      setNotifications((prev) => [notif, ...prev].slice(0, 50));
+      setUnreadCount((prev) => prev + 1);
+
       if (payload?.conversationId) {
         setConversations((prev) => {
           const exists = prev.some((conv) => conv.id === payload.conversationId);
           if (!exists) {
-            // If this session was created by cron and is not loaded yet, refresh so the reminder text appears.
-            refreshConversations(authToken).catch(() => {
-              // no-op
-            });
+            refreshConversations(authToken).catch(() => { /* no-op */ });
             return prev;
           }
-    // Inject reminder message into the correct conversation thread based on conversationId.
           return prev.map((conv) => {
             if (conv.id !== payload.conversationId) return conv;
             return {
@@ -752,10 +776,7 @@ function VoiceChat({ onLogout, profile }) {
           });
         });
       } else {
-        // If no conversationId is provided, show the reminder as a system message in the currently active thread.
-        refreshConversations(authToken).catch(() => {
-          // no-op
-        });
+        refreshConversations(authToken).catch(() => { /* no-op */ });
       }
 
       if (payload?.audioFile) {
@@ -919,15 +940,86 @@ function VoiceChat({ onLogout, profile }) {
         const blob = new Blob([new Uint8Array(result.audioBuffer)], { type: 'audio/mp3' });
         const url = URL.createObjectURL(blob);
         audioRef.current.src = url;
-        audioRef.current.play();
+        audioRef.current.play().catch(() => { /* no-op */ });
       } else if (result.audioFile) {
         audioRef.current.src = apiUrl(result.audioFile);
-        audioRef.current.play();
+        audioRef.current.play().catch(() => { /* no-op */ });
       }
     } catch {
       // no-op
     }
   };
+
+  // ── Scroll chat to bottom whenever messages update ────────────────────────
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [messages, isLoading]);
+
+  // ── Close notification panel on outside click ─────────────────────────────
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handleClickOutside = (e) => {
+      if (notifPanelRef.current && !notifPanelRef.current.contains(e.target)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [notifOpen]);
+
+  // ── Mark all notifications as read when panel opens ───────────────────────
+  useEffect(() => {
+    if (notifOpen) {
+      setUnreadCount(0);
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    }
+  }, [notifOpen]);
+
+  // ── Send text message via socket (transcript-only path) ───────────────────
+  const sendTextMessage = useCallback(() => {
+    const trimmed = textInput.trim();
+    if (!trimmed) return;
+    if (!socket || !activeConversationId) {
+      alert('Please select a bill chat first.');
+      return;
+    }
+
+    const userMessage = {
+      id: Date.now() + Math.random(),
+      role: 'USER',
+      message: trimmed,
+      timestamp: new Date(),
+    };
+
+    setConversations((prev) => prev.map((conv) => {
+      if (conv.id !== activeConversationId) return conv;
+      return {
+        ...conv,
+        messages: [...conv.messages, userMessage],
+        lastActivityAt: new Date(),
+      };
+    }));
+
+    setTextInput('');
+    setIsLoading(true);
+
+    socket.emit('voice-message', {
+      conversationId: activeConversationId,
+      userId: localStorage.getItem('userId'),
+      audioBuffer: [],
+      transcript: trimmed,
+    });
+  }, [textInput, socket, activeConversationId]);
+
+  // ── Handle Enter key in text box (Shift+Enter = newline) ─────────────────
+  const handleTextKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendTextMessage();
+    }
+  }, [sendTextMessage]);
 
   const setupSpeechRecognition = () => {
     // Used only for creating/selecting bill sessions by voice prompts.
@@ -1414,10 +1506,74 @@ function VoiceChat({ onLogout, profile }) {
                 <span className="material-symbols-outlined dark:hidden">dark_mode</span>
                 <span className="material-symbols-outlined hidden dark:block">light_mode</span>
               </button>
-              <button className="p-2 text-on-surface-variant dark:text-on-surface-variant-dark hover:bg-surface-container-low dark:hover:bg-surface-container-low-dark rounded-full transition-colors relative">
-                <span className="material-symbols-outlined">notifications</span>
-                {isConnected && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-green-500 dark:bg-blue-400 rounded-full border border-white dark:border-surface-container"></span>}
-              </button>
+              {/* ── Notification Bell ── */}
+              <div className="relative" ref={notifPanelRef}>
+                <button
+                  id="notif-bell-btn"
+                  aria-label="Notifications"
+                  aria-expanded={notifOpen}
+                  aria-haspopup="true"
+                  className="p-2 text-on-surface-variant dark:text-on-surface-variant-dark hover:bg-surface-container-low dark:hover:bg-surface-container-low-dark rounded-full transition-colors relative"
+                  onClick={() => setNotifOpen((prev) => !prev)}
+                >
+                  <span className="material-symbols-outlined">notifications</span>
+                  {unreadCount > 0 && (
+                    <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+                  )}
+                  {isConnected && unreadCount === 0 && (
+                    <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-green-500 dark:bg-blue-400 rounded-full border border-white dark:border-surface-container" />
+                  )}
+                </button>
+
+                {/* ── Notification Dropdown Panel ── */}
+                {notifOpen && (
+                  <div
+                    id="notif-panel"
+                    role="dialog"
+                    aria-label="Notifications panel"
+                    className="notif-panel"
+                  >
+                    <div className="notif-panel-header">
+                      <span>Notifications</span>
+                      {notifications.length > 0 && (
+                        <button
+                          className="notif-clear-btn"
+                          onClick={() => { setNotifications([]); setUnreadCount(0); }}
+                        >
+                          Clear all
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="notif-list">
+                      {notifications.length === 0 ? (
+                        <div className="notif-empty">
+                          <span className="material-symbols-outlined" style={{ fontSize: 32, opacity: 0.35 }}>notifications_none</span>
+                          <p>No notifications yet</p>
+                        </div>
+                      ) : (
+                        notifications.map((notif) => (
+                          <div
+                            key={notif.id}
+                            className={`notif-item ${notif.read ? 'read' : 'unread'}`}
+                          >
+                            <span className="notif-icon material-symbols-outlined">
+                              {notif.type === 'reminder' ? 'alarm' : 'info'}
+                            </span>
+                            <div className="notif-content">
+                              <p className="notif-title">{notif.title}</p>
+                              <p className="notif-msg">{notif.message}</p>
+                              <p className="notif-time">
+                                {new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-3 pl-stack-md border-l border-outline-variant dark:border-outline-variant-dark transition-colors duration-300">
               <div className="text-right hidden sm:block">
@@ -1839,9 +1995,38 @@ function VoiceChat({ onLogout, profile }) {
                         <span>Processing...</span>
                       </div>
                     )}
+                    {/* Anchor element for auto-scroll to bottom */}
+                    <div ref={messagesEndRef} style={{ height: 0 }} aria-hidden="true" />
                   </div>
 
                   <div className="controls">
+                    {/* ── Text Input Row ── */}
+                    <div className="text-input-row">
+                      <textarea
+                        ref={textInputRef}
+                        id="chat-text-input"
+                        className="chat-text-input"
+                        rows={1}
+                        placeholder="Type a message or ask the AI…"
+                        value={textInput}
+                        onChange={(e) => setTextInput(e.target.value)}
+                        onKeyDown={handleTextKeyDown}
+                        disabled={isLoading || !activeConversationId || !isConnected}
+                        aria-label="Type a message"
+                      />
+                      <button
+                        id="chat-send-btn"
+                        type="button"
+                        className="chat-send-btn"
+                        onClick={sendTextMessage}
+                        disabled={!textInput.trim() || isLoading || !activeConversationId || !isConnected}
+                        aria-label="Send message"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>send</span>
+                      </button>
+                    </div>
+
+                    {/* ── Voice Record Button ── */}
                     <button
                       className={`record-btn ${isRecording ? 'recording' : ''}`}
                       onMouseDown={startRecording}
@@ -1849,6 +2034,7 @@ function VoiceChat({ onLogout, profile }) {
                       onTouchStart={startRecording}
                       onTouchEnd={stopRecording}
                       disabled={!isConnected || isLoading || !activeConversationId}
+                      aria-label={isRecording ? 'Recording in progress' : 'Hold to record voice'}
                     >
                       <span className="record-dot" aria-hidden="true"></span>
                       {isRecording ? 'Recording...' : 'Hold to Record'}
