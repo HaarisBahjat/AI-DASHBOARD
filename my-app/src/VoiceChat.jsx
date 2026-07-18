@@ -2000,14 +2000,14 @@ function VoiceChat({ onLogout, profile }) {
                   </div>
 
                   <div className="controls">
-                    {/* ── WhatsApp-style single bar ── */}
+                    {/* ── Single-row input bar: textarea | mic | send ── */}
                     <div className="wa-input-bar">
                       <textarea
                         ref={textInputRef}
                         id="chat-text-input"
                         className="chat-text-input"
                         rows={1}
-                        placeholder={isRecording ? '🔴 Recording…' : 'Message or hold 🎤 to speak…'}
+                        placeholder={isRecording ? '🔴 Recording…' : 'Message or hold mic to speak…'}
                         value={textInput}
                         onChange={(e) => setTextInput(e.target.value)}
                         onKeyDown={handleTextKeyDown}
@@ -2015,34 +2015,32 @@ function VoiceChat({ onLogout, profile }) {
                         aria-label="Type a message"
                       />
 
-                      {/* Send button — shown when text is present */}
-                      <button
-                        id="chat-send-btn"
-                        type="button"
-                        className={`wa-action-btn send-btn ${textInput.trim() ? 'visible' : 'hidden'}`}
-                        onClick={sendTextMessage}
-                        disabled={!textInput.trim() || isLoading || !activeConversationId || !isConnected}
-                        aria-label="Send message"
-                        tabIndex={textInput.trim() ? 0 : -1}
-                      >
-                        <span className="material-symbols-outlined">send</span>
-                      </button>
-
-                      {/* Mic button — shown when text box is empty */}
+                      {/* Mic button — always visible, dims when typing */}
                       <button
                         type="button"
-                        className={`wa-action-btn mic-btn ${isRecording ? 'recording' : ''} ${textInput.trim() ? 'hidden' : 'visible'}`}
-                        onMouseDown={!textInput.trim() ? startRecording : undefined}
-                        onMouseUp={!textInput.trim() ? stopRecording : undefined}
-                        onTouchStart={!textInput.trim() ? startRecording : undefined}
-                        onTouchEnd={!textInput.trim() ? stopRecording : undefined}
-                        disabled={!isConnected || isLoading || !activeConversationId}
+                        className={`wa-action-btn mic-btn${isRecording ? ' recording' : ''}${textInput.trim() ? ' dimmed' : ''}`}
+                        onMouseDown={startRecording}
+                        onMouseUp={stopRecording}
+                        onTouchStart={startRecording}
+                        onTouchEnd={stopRecording}
+                        disabled={!!textInput.trim() || !isConnected || isLoading || !activeConversationId}
                         aria-label={isRecording ? 'Recording in progress' : 'Hold to record voice'}
-                        tabIndex={textInput.trim() ? -1 : 0}
                       >
                         <span className="material-symbols-outlined">
                           {isRecording ? 'radio_button_checked' : 'mic'}
                         </span>
+                      </button>
+
+                      {/* Send button — always visible, dims when no text */}
+                      <button
+                        id="chat-send-btn"
+                        type="button"
+                        className={`wa-action-btn send-btn${!textInput.trim() ? ' dimmed' : ''}`}
+                        onClick={sendTextMessage}
+                        disabled={!textInput.trim() || isLoading || !activeConversationId || !isConnected}
+                        aria-label="Send message"
+                      >
+                        <span className="material-symbols-outlined">send</span>
                       </button>
                     </div>
 
