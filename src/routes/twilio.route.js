@@ -125,34 +125,75 @@ function buildGather(twiml, { replyText, gatherUrl }) {
  * Returns a human-readable outcome string for audit logging.
  */
 async function applyCallDecision({ intent, snoozeDays, userId, dueId }) {
+    const now = new Date();
+
     switch (intent) {
-        case 'confirm_paid':
+
+        // ── User says "I'll pay now / today / in a bit" ──────────────────────
+        // This is a Promise to Pay (PTP), NOT a confirmation.
+        // We snooze for 1 day and flag it. If unpaid tomorrow, the
+        // cron will call them back with context that they already promised.
         case 'will_pay_today': {
-            await Dues.findByIdAndUpdate(dueId, { status: 'PAID', snoozeDate: null });
-            emitToUser(userId, 'payment-success', { dueId, source: 'voice-call' });
-            return intent === 'confirm_paid'
-                ? 'Marked PAID — user confirmed on call'
-                : 'Marked PAID — user committed to pay today on call';
+            const snoozeDate = new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000); // +1 day
+            await Dues.findByIdAndUpdate(dueId, {
+                status: 'PTP',
+                snoozeDate,
+                metadata: {
+                    promiseToPay: true,
+                    promisedAt: now,
+                    promisedFor: snoozeDate,
+                },
+            });
+            emitToUser(userId, 'due-ptp', { dueId, snoozeDate, source: 'voice-call' });
+            return 'Marked PTP — user verbally committed to pay today. Snoozed 1 day.';
         }
+
+        // ── User says "I already paid" ───────────────────────────────────────
+        // Cannot be trusted blindly. Flag for admin verification.
+        // Snoozed 2 days — if no manual confirmation by then, it goes back to OVERDUE.
+        case 'confirm_paid': {
+            const snoozeDate = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000); // +2 days
+            await Dues.findByIdAndUpdate(dueId, {
+                status: 'VERIFYING',
+                snoozeDate,
+                metadata: {
+                    verificationPending: true,
+                    claimedPaidAt: now,
+                },
+            });
+            emitToUser(userId, 'due-verifying', { dueId, snoozeDate, source: 'voice-call' });
+            return 'Marked VERIFYING — user claimed payment. Admin must confirm via bank records.';
+        }
+
+        // ── User asks for more time ──────────────────────────────────────────
         case 'snooze': {
             const days = snoozeDays || 3;
-            const snoozeDate = new Date();
-            snoozeDate.setDate(snoozeDate.getDate() + days);
-            await Dues.findByIdAndUpdate(dueId, { snoozeDate });
+            const snoozeDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+            await Dues.findByIdAndUpdate(dueId, {
+                snoozeDate,
+                metadata: { snoozedViaCall: true, snoozedAt: now },
+            });
             emitToUser(userId, 'due-snoozed', { dueId, snoozeDays: days, snoozeDate });
             return `Snoozed ${days} day(s) via call`;
         }
+
+        // ── User disputes the charge ─────────────────────────────────────────
         case 'dispute': {
             await Dues.findByIdAndUpdate(dueId, {
-                $set: { 'metadata.disputed': true, 'metadata.disputedAt': new Date() }
+                $set: {
+                    'metadata.disputed': true,
+                    'metadata.disputedAt': now,
+                },
             });
             emitToUser(userId, 'due-disputed', { dueId });
             return 'Flagged as disputed via call';
         }
+
         default:
             return 'No action taken — intent unclear';
     }
 }
+
 
 /**
  * Persist the completed call to MongoDB CallLog.

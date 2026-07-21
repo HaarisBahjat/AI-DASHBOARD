@@ -105,8 +105,8 @@ Return ONLY valid JSON — no markdown, no extra text:
 Rules for replyMessage:
 - Keep it under 30 words
 - Sound natural as spoken audio (no special characters, no markdown)
-- For confirm_paid: thank them and say the record will be updated
-- For will_pay_today: encourage them and say a reminder will fire if unpaid by evening
+- For confirm_paid: thank them and say our team will verify the payment within 1 to 2 days. Do NOT say the record has been marked paid.
+- For will_pay_today: acknowledge the promise and say we will follow up tomorrow if the payment has not arrived. Do NOT say the record has been updated.
 - For snooze: confirm the snooze period
 - For dispute: apologise and say the team will review it
 - For no_response: politely ask them to reply via WhatsApp or the app
@@ -197,7 +197,9 @@ RULES FOR reply (spoken aloud on a phone call):
 - CRITICAL: You MUST ALWAYS respond in clear, professional English regardless of what language the user appears to be speaking.
 - Sound warm, professional, not robotic
 - For continue: ask ONE clear focused follow-up question
-- For end: confirm the outcome in one sentence
+- For end with will_pay_today: say you will follow up tomorrow if payment has not arrived. Do NOT say record has been updated.
+- For end with confirm_paid: say the team will verify the payment in 1 to 2 days. Do NOT say the record is now marked paid.
+- For end with snooze/dispute: confirm the outcome in one sentence
 
 Return ONLY this JSON — no markdown, no extra text:
 {

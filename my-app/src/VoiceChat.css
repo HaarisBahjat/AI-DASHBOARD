@@ -1079,6 +1079,58 @@
   background: transparent;
 }
 
+/* ── PTP (Promise to Pay) — amber ──────────────────────── */
+.finance-row-status.ptp {
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.ptp-row {
+  border-left: 3px solid rgba(245, 158, 11, 0.6) !important;
+}
+
+.ptp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 999px;
+  padding: 2px 8px;
+  vertical-align: middle;
+}
+
+/* ── VERIFYING — indigo/blue ────────────────────────────── */
+.finance-row-status.verifying {
+  color: #818cf8;
+  border-color: rgba(129, 140, 248, 0.4);
+  background: rgba(129, 140, 248, 0.08);
+}
+
+.verifying-row {
+  border-left: 3px solid rgba(129, 140, 248, 0.6) !important;
+}
+
+.verifying-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #818cf8;
+  background: rgba(129, 140, 248, 0.12);
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  border-radius: 999px;
+  padding: 2px 8px;
+  vertical-align: middle;
+}
+
 .finance-inline-btn {
   border: 1px solid var(--border-mid);
   border-radius: 8px;

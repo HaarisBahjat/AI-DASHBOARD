@@ -82,12 +82,18 @@ const duesSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["PAID", "UNPAID", "OVERDUE"],
+      enum: ["PAID", "UNPAID", "OVERDUE", "PTP", "VERIFYING"],
       default: "UNPAID"
     },
     snoozeDate: {
       type: Date,
       default: null
+    },
+    // Flexible bag for AI-set flags: promiseToPay, verificationPending,
+    // disputed, disputedAt — avoids schema migrations for minor flags.
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {}
     }
   },
   { timestamps: true }

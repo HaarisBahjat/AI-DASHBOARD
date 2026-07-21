@@ -649,12 +649,13 @@ function VoiceChat({ onLogout, profile }) {
         status: normalizeDueStatus(due?.status),
         dueDate: due?.dueDate || null,
         snoozeDate: due?.snoozeDate || null,
+        // Carry metadata flags so PTP / VERIFYING badges can render
+        metadata: due?.metadata || {},
       }))
       .sort((a, b) => {
-        if (a.status !== b.status) {
-          if (a.status === 'OVERDUE') return -1;
-          if (b.status === 'OVERDUE') return 1;
-        }
+        // PTP and VERIFYING sort just below OVERDUE
+        const priority = (s) => s === 'OVERDUE' ? 0 : (s === 'PTP' || s === 'VERIFYING') ? 1 : 2;
+        if (priority(a.status) !== priority(b.status)) return priority(a.status) - priority(b.status);
         const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
         const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
         return aDate - bDate;
@@ -785,6 +786,18 @@ function VoiceChat({ onLogout, profile }) {
     });
 
     newSocket.on('disconnect', () => setIsConnected(false));
+
+    // ── PTP / Verification real-time badge updates ─────────────────────────
+    // When the AI receives a verbal payment promise on a call, refresh dues
+    // so the ⏳ / 🔍 badge appears in the Finance tab immediately.
+    newSocket.on('due-ptp', () => {
+      const tok = localStorage.getItem('authToken');
+      if (tok) refreshDues(tok);
+    });
+    newSocket.on('due-verifying', () => {
+      const tok = localStorage.getItem('authToken');
+      if (tok) refreshDues(tok);
+    });
 
     setSocket(newSocket);
 
@@ -1694,18 +1707,49 @@ function VoiceChat({ onLogout, profile }) {
                     const snoozeLoading = financeActionLoadingId === `${item.id}:SNOOZE`;
                     const payNowLoading = financeActionLoadingId === `${item.id}:PAYNOW`;
 
+                    // Determine PTP / VERIFYING display metadata
+                    const isPtp = item.status === 'PTP';
+                    const isVerifying = item.status === 'VERIFYING';
+                    const ptpDate = item.metadata?.promisedFor
+                      ? formatDate(item.metadata.promisedFor)
+                      : 'today';
+                    const claimedDate = item.metadata?.claimedPaidAt
+                      ? formatDate(item.metadata.claimedPaidAt)
+                      : 'recently';
+
                     return (
-                      <article key={item.id} className="finance-action-row hover:bg-surface-container-low dark:hover:bg-surface-container-low-dark transition-colors duration-200">
+                      <article key={item.id} className={`finance-action-row hover:bg-surface-container-low dark:hover:bg-surface-container-low-dark transition-colors duration-200${isPtp ? ' ptp-row' : ''}${isVerifying ? ' verifying-row' : ''}`}>
                         <div className="finance-action-main">
-                          <h4>{item.title}</h4>
+                          <h4>
+                            {item.title}
+                            {isPtp && (
+                              <span className="ptp-badge" title="User promised to pay via voice call — not yet confirmed">
+                                ⏳ Promised for Today
+                              </span>
+                            )}
+                            {isVerifying && (
+                              <span className="verifying-badge" title="User claimed payment on call — awaiting admin verification">
+                                🔍 Verifying Payment
+                              </span>
+                            )}
+                          </h4>
                           <p>
                             {formatCurrency(item.amount)} • Due {formatDate(item.dueDate)}
-                            {item.snoozeDate ? ` • Snoozed until ${formatDate(item.snoozeDate)}` : ''}
+                            {isPtp && ` • AI heard promise on ${ptpDate} — will follow up if unpaid`}
+                            {isVerifying && ` • User claimed paid on ${claimedDate} — please check your bank`}
+                            {!isPtp && !isVerifying && item.snoozeDate ? ` • Snoozed until ${formatDate(item.snoozeDate)}` : ''}
                           </p>
                         </div>
                         <div className="finance-action-right">
-                          <span className={`finance-row-status ${item.status === 'OVERDUE' ? 'overdue' : 'pending'}`}>
-                            {item.status}
+                          <span className={`finance-row-status ${
+                            item.status === 'OVERDUE' ? 'overdue'
+                            : item.status === 'PTP' ? 'ptp'
+                            : item.status === 'VERIFYING' ? 'verifying'
+                            : 'pending'
+                          }`}>
+                            {item.status === 'PTP' ? 'Promise to Pay'
+                              : item.status === 'VERIFYING' ? 'Verifying'
+                              : item.status}
                           </span>
                           <button
                             type="button"
