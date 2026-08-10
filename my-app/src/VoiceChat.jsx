@@ -262,6 +262,11 @@ function VoiceChat({ onLogout, profile }) {
   const [addCustomerLoading, setAddCustomerLoading] = useState(false);
   const [followupAllLoading, setFollowupAllLoading] = useState(false);
 
+  // ── Customer Invoice Creation state ─────────────────────────────────────────
+  const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false);
+  const [newInvoiceForm, setNewInvoiceForm] = useState({ title: '', amount: '', dueDate: '', invoiceNo: '' });
+  const [addInvoiceLoading, setAddInvoiceLoading] = useState(false);
+
   const profileInitials = useMemo(() => {
     const displayName = profile?.name || 'User';
     const source = displayName.trim();
@@ -448,6 +453,40 @@ function VoiceChat({ onLogout, profile }) {
       alert('Error: ' + err.message);
     } finally {
       setAddCustomerLoading(false);
+    }
+  };
+
+  const handleAddInvoiceForCustomer = async () => {
+    if (!newInvoiceForm.title.trim() || !newInvoiceForm.amount || !newInvoiceForm.dueDate) {
+      alert('Title, amount, and due date are required');
+      return;
+    }
+    const token = localStorage.getItem('authToken');
+    if (!token || !selectedCustomerId) return;
+    setAddInvoiceLoading(true);
+    try {
+      const res = await fetch(apiUrl('/api/dues'), {
+        method: 'POST',
+        headers: getAuthHeaders(token),
+        body: JSON.stringify({
+          customerId: selectedCustomerId,
+          title: newInvoiceForm.title.trim(),
+          amount: Number(newInvoiceForm.amount),
+          dueDate: newInvoiceForm.dueDate,
+          invoiceNo: newInvoiceForm.invoiceNo?.trim() || null,
+        }),
+      });
+      const data = await safeJsonParse(res);
+      if (!res.ok) throw new Error(data.message || 'Failed to create invoice');
+      setShowAddInvoiceModal(false);
+      setNewInvoiceForm({ title: '', amount: '', dueDate: '', invoiceNo: '' });
+      await loadCustomerActivity(selectedCustomerId);
+      await refreshCustomers(token);
+      await refreshDues(token);
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setAddInvoiceLoading(false);
     }
   };
 
@@ -1971,10 +2010,43 @@ function VoiceChat({ onLogout, profile }) {
                           style={{ flex: 1, minWidth: 120, padding: '9px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
                         >🚀 Send Follow-Up</button>
                         <button
+                          onClick={() => setShowAddInvoiceModal(true)}
+                          style={{ flex: 1, minWidth: 120, padding: '9px 14px', borderRadius: 8, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.15)', color: '#818cf8', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                        >+ Add Invoice</button>
+                        <button
                           onClick={() => handleToggleFollowUp(selectedCustomerId, customerActivity.customer?.followUpEnabled)}
                           style={{ flex: 1, minWidth: 120, padding: '9px 14px', borderRadius: 8, border: '1px solid rgba(148,163,184,0.25)', background: 'transparent', color: customerActivity.customer?.followUpEnabled ? '#ef4444' : '#22c55e', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
-                        >{customerActivity.customer?.followUpEnabled ? '⏸ Stop Follow-Up' : '▶ Start Follow-Up'}</button>
+                        >{customerActivity.customer?.followUpEnabled ? '⏸ Stop' : '▶ Start'}</button>
                       </div>
+
+                      {/* ── Add Invoice Modal for Customer ── */}
+                      {showAddInvoiceModal && (
+                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
+                          <div style={{ background: '#0f172a', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 420, boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
+                            <h4 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#e2e8f0' }}>Add Invoice for {customerActivity.customer?.name}</h4>
+                            <div style={{ marginBottom: 12 }}>
+                              <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>Title / Item Name *</label>
+                              <input type="text" placeholder="e.g. Order #104 - Web Development" value={newInvoiceForm.title} onChange={e => setNewInvoiceForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(30,41,59,0.8)', color: '#e2e8f0', fontSize: 13, boxSizing: 'border-box', outline: 'none' }} />
+                            </div>
+                            <div style={{ marginBottom: 12 }}>
+                              <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>Amount (₹) *</label>
+                              <input type="number" placeholder="e.g. 15000" value={newInvoiceForm.amount} onChange={e => setNewInvoiceForm(p => ({ ...p, amount: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(30,41,59,0.8)', color: '#e2e8f0', fontSize: 13, boxSizing: 'border-box', outline: 'none' }} />
+                            </div>
+                            <div style={{ marginBottom: 12 }}>
+                              <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>Due Date *</label>
+                              <input type="date" value={newInvoiceForm.dueDate} onChange={e => setNewInvoiceForm(p => ({ ...p, dueDate: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(30,41,59,0.8)', color: '#e2e8f0', fontSize: 13, boxSizing: 'border-box', outline: 'none' }} />
+                            </div>
+                            <div style={{ marginBottom: 16 }}>
+                              <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>Invoice No (Optional)</label>
+                              <input type="text" placeholder="e.g. INV-2026-001" value={newInvoiceForm.invoiceNo} onChange={e => setNewInvoiceForm(p => ({ ...p, invoiceNo: e.target.value }))} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(30,41,59,0.8)', color: '#e2e8f0', fontSize: 13, boxSizing: 'border-box', outline: 'none' }} />
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button onClick={() => setShowAddInvoiceModal(false)} style={{ flex: 1, padding: '9px', borderRadius: 8, border: '1px solid rgba(148,163,184,0.2)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>Cancel</button>
+                              <button onClick={handleAddInvoiceForCustomer} disabled={addInvoiceLoading} style={{ flex: 1, padding: '9px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12, opacity: addInvoiceLoading ? 0.7 : 1 }}>{addInvoiceLoading ? 'Saving...' : 'Add Invoice'}</button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Invoices list */}
                       <h4 style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invoices ({customerActivity.dues?.length || 0})</h4>
