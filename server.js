@@ -1,5 +1,6 @@
 require("dotenv").config();
 const express = require('express');
+const helmet = require('helmet');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -49,6 +50,12 @@ const allowedOrigins = new Set([
 
 
 const app = express();
+// [SECURITY] Add security HTTP headers
+app.use(helmet({
+    contentSecurityPolicy: false, // Disable CSP so local development / inline scripts / Vite don't break
+    crossOriginEmbedderPolicy: false
+}));
+
 // Trust the first proxy hop (required on HuggingFace / Vercel / any reverse-proxy host)
 // so that express-rate-limit correctly reads the real client IP from X-Forwarded-For
 app.set('trust proxy', 1);
@@ -73,9 +80,9 @@ voiceSocket(io);
 module.exports = { io };
 
 // Middleware to parse JSON bodies and form data (Twilio uses form data)
-// [H] Body size limit — prevents memory exhaustion from huge payloads
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// [H] Body size limit — general limit is 2mb, express urlencoded is 2mb
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(cookieParser());
 app.use(cors({
     origin: (origin, callback) => {
@@ -106,6 +113,8 @@ app.use('/api/reminders', reminderRoute);
 app.use('/api/payments', require('./src/routes/payments.route'));
 app.use('/api/reminder-outcomes', require('./src/routes/reminderRead.route'));
 app.use('/api/conversations', require('./src/routes/conversation.routes'));
+// Customers: B2B contact + invoice management (Phase 1)
+app.use('/api/customers', require('./src/routes/customers.route'));
 // Twilio: outbound voice TwiML + inbound SMS/WhatsApp webhook
 app.use('/api/twilio', require('./src/routes/twilio.route'));
 app.use("/audio", express.static("src/audio"));

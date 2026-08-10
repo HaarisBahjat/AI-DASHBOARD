@@ -27,7 +27,8 @@ exports.signup = async (req, res) => {
        const user= await User.create({ name: username, passwordHash: hashedPassword, email, role:"USER" });
         res.status(201).json({ message: 'User created successfully', userId: user._id });
     } catch (error) {
-        res.status(500).json({ message: 'Error creating user', error: error.message });
+        console.error('signup error:', error.message);
+        res.status(500).json({ message: 'Error creating user' });
     }
 };
 
@@ -55,8 +56,9 @@ exports.login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid email or password' });
         }
 
-        // Generate JWT token
-        const token = jwt.sign({ userId: user._id, role: user.role }, SECRET_KEY, { expiresIn: '1h' });
+        // Generate JWT token (default 15 minutes for access tokens)
+        const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
+        const token = jwt.sign({ userId: user._id, role: user.role }, SECRET_KEY, { expiresIn: JWT_EXPIRES_IN });
         //Generate refresh token
         const refreshToken = jwt.sign({ userId: user._id, tokenType: 'refresh' }, JWT_REFRESH_SECRET_KEY, { expiresIn: '7d' });
         //store refresh token in db
@@ -72,7 +74,8 @@ exports.login = async (req, res) => {
         });
         res.status(200).json({ message: 'Login successful', token: token, user: { _id: user._id } });
     } catch (error) {
-        res.status(500).json({ message: 'Error logging in', error: error.message });
+        console.error('login error:', error.message);
+        res.status(500).json({ message: 'Error logging in' });
     }
 };
 
@@ -98,11 +101,13 @@ exports.refreshToken = async (req, res) => {
         }
 
         // Generate new access token
-        const newAccessToken = jwt.sign({ userId: user._id, role: user.role }, SECRET_KEY, { expiresIn: '1h' });
+        const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
+        const newAccessToken = jwt.sign({ userId: user._id, role: user.role }, SECRET_KEY, { expiresIn: JWT_EXPIRES_IN });
 
         res.status(200).json({ access: newAccessToken });
     } catch (error) {
-        res.status(500).json({ message: 'Error refreshing token', error: error.message });
+        console.error('refreshToken error:', error.message);
+        res.status(500).json({ message: 'Error refreshing token' });
     }
 };
 
@@ -123,6 +128,7 @@ exports.logout = async (req, res) => {
         });
         res.status(200).json({ message: 'Logout successful' });
     } catch (error) {
-        res.status(500).json({ message: 'Error logging out', error: error.message });
+        console.error('logout error:', error.message);
+        res.status(500).json({ message: 'Error logging out' });
     }
 };

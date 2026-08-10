@@ -11,9 +11,20 @@ const { emitToUser } = require('../Sockets/socketState');
 exports.createPaymentOrder = async (req, res) => {
     try {
         const { dueId } = req.body;
-        const due = await Dues.findById(dueId);
+        if (!dueId) {
+            return res.status(400).json({ message: 'dueId is required' });
+        }
+
+        // [SECURITY] Enforce ownership — only the due's owner can create a payment order
+        const due = await Dues.findOne({ _id: dueId, userId: req.user._id });
         if (!due) {
             return res.status(404).json({ message: 'Due not found' });
+        }
+
+        // [SECURITY] Sanity check: reject unreasonably large amounts before sending to Razorpay
+        const MAX_AMOUNT = parseInt(process.env.MAX_PAYMENT_AMOUNT || '10000000', 10); // ₹1 crore
+        if (due.amount <= 0 || due.amount > MAX_AMOUNT) {
+            return res.status(400).json({ message: `Amount must be between ₹1 and ₹${MAX_AMOUNT}` });
         }
 
         // Create Razorpay order using the service helper. The service expects amount in rupees.
@@ -28,7 +39,7 @@ exports.createPaymentOrder = async (req, res) => {
         });
     } catch (error) {
         console.error('createPaymentOrder error:', error);
-        return res.status(500).json({ message: 'Error creating payment order', error: error.message });
+        return res.status(500).json({ message: 'Error creating payment order' });
     }
 };
 

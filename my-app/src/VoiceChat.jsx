@@ -42,6 +42,7 @@ const getMonthKey = (dateValue) => {
 
 const NAV_ITEMS = [
   { key: 'conversations', label: 'Conversations', icon: 'dashboard' },
+  { key: 'contacts', label: 'Contacts', icon: 'people' },
   { key: 'intellige', label: 'Intellige', icon: 'auto_awesome', soon: true },
   { key: 'finance', label: 'Finance', icon: 'account_balance_wallet' },
   { key: 'analytics', label: 'Analytics', icon: 'show_chart' },
@@ -248,6 +249,19 @@ function VoiceChat({ onLogout, profile }) {
   const messagesEndRef = useRef(null);
   const textInputRef = useRef(null);
 
+  // ── Contacts (Customers) state ────────────────────────────────────────────
+  const [customers, setCustomers] = useState([]);
+  const [isCustomersLoading, setIsCustomersLoading] = useState(false);
+  const [customerDrawerOpen, setCustomerDrawerOpen] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [customerActivity, setCustomerActivity] = useState(null);
+  const [isDrawerLoading, setIsDrawerLoading] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [newCustomerForm, setNewCustomerForm] = useState({ name: '', contactNo: '', email: '', place: '', notes: '' });
+  const [addCustomerLoading, setAddCustomerLoading] = useState(false);
+  const [followupAllLoading, setFollowupAllLoading] = useState(false);
+
   const profileInitials = useMemo(() => {
     const displayName = profile?.name || 'User';
     const source = displayName.trim();
@@ -352,6 +366,110 @@ function VoiceChat({ onLogout, profile }) {
     });
 
     setConversations(withDetails);
+  };
+
+  const refreshCustomers = async (tokenOverride) => {
+    const token = tokenOverride || localStorage.getItem('authToken');
+    if (!token) return;
+    setIsCustomersLoading(true);
+    try {
+      const res = await fetch(apiUrl('/api/customers'), { headers: getAuthHeaders(token) });
+      if (!res.ok) throw new Error(`Failed to fetch customers (${res.status})`);
+      const data = await res.json();
+      setCustomers(Array.isArray(data?.customers) ? data.customers : []);
+    } catch (err) {
+      console.error('Failed to load customers:', err.message);
+    } finally {
+      setIsCustomersLoading(false);
+    }
+  };
+
+  const loadCustomerActivity = async (customerId) => {
+    const token = localStorage.getItem('authToken');
+    if (!token || !customerId) return;
+    setIsDrawerLoading(true);
+    setCustomerActivity(null);
+    try {
+      const res = await fetch(apiUrl(`/api/customers/${customerId}/activity`), { headers: getAuthHeaders(token) });
+      if (!res.ok) throw new Error(`Failed to load activity (${res.status})`);
+      const data = await res.json();
+      setCustomerActivity(data);
+    } catch (err) {
+      console.error('loadCustomerActivity error:', err.message);
+    } finally {
+      setIsDrawerLoading(false);
+    }
+  };
+
+  const openCustomerDrawer = (customerId) => {
+    setSelectedCustomerId(customerId);
+    setCustomerDrawerOpen(true);
+    loadCustomerActivity(customerId);
+  };
+
+  const closeCustomerDrawer = () => {
+    setCustomerDrawerOpen(false);
+    setSelectedCustomerId(null);
+    setCustomerActivity(null);
+  };
+
+  const handleAddCustomer = async () => {
+    if (!newCustomerForm.name.trim()) { alert('Customer name is required'); return; }
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+    setAddCustomerLoading(true);
+    try {
+      const res = await fetch(apiUrl('/api/customers'), {
+        method: 'POST',
+        headers: getAuthHeaders(token),
+        body: JSON.stringify(newCustomerForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to create customer');
+      setShowAddCustomerModal(false);
+      setNewCustomerForm({ name: '', contactNo: '', email: '', place: '', notes: '' });
+      await refreshCustomers(token);
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setAddCustomerLoading(false);
+    }
+  };
+
+  const handleToggleFollowUp = async (customerId, currentValue) => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+    try {
+      const res = await fetch(apiUrl(`/api/customers/${customerId}`), {
+        method: 'PUT',
+        headers: getAuthHeaders(token),
+        body: JSON.stringify({ followUpEnabled: !currentValue }),
+      });
+      if (!res.ok) throw new Error('Failed to update');
+      await refreshCustomers(token);
+      if (selectedCustomerId === customerId) loadCustomerActivity(customerId);
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  };
+
+  const handleTriggerFollowupAll = async () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+    setFollowupAllLoading(true);
+    try {
+      const res = await fetch(apiUrl('/api/customers/trigger-followup-all'), {
+        method: 'POST',
+        headers: getAuthHeaders(token),
+        body: JSON.stringify({ channel: 'voiceCall' }),
+      });
+      const data = await res.json();
+      alert(data.message || 'Follow-up triggered for all eligible customers');
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setFollowupAllLoading(false);
+    }
   };
 
   const refreshDues = async (tokenOverride) => {
@@ -805,6 +923,7 @@ function VoiceChat({ onLogout, profile }) {
       console.error('Failed to auto-load conversations:', err.message);
     });
     refreshDues(authToken);
+    refreshCustomers(authToken);
 
     return () => newSocket.close();
   }, []);
@@ -1605,7 +1724,312 @@ function VoiceChat({ onLogout, profile }) {
           {/* Background Decoration */}
           <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/5 dark:bg-primary-dark/5 rounded-full blur-[120px] -z-10 translate-x-1/2 -translate-y-1/2 transition-colors duration-300 pointer-events-none"></div>
 
-        {activeTab === 'finance' ? (
+        {/* ── Contacts Tab ─────────────────────────────────────────────────────── */}
+        {activeTab === 'contacts' ? (
+          <div style={{ padding: '0 0 32px 0' }}>
+            {/* Header row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--color-on-surface, #e2e8f0)' }}>Contacts</h2>
+                <p style={{ fontSize: 13, color: 'var(--color-on-surface-variant, #94a3b8)', margin: '4px 0 0' }}>Customers & Suppliers — click any row to view activity</p>
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  id="contacts-followup-all-btn"
+                  onClick={handleTriggerFollowupAll}
+                  disabled={followupAllLoading}
+                  style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', border: 'none', padding: '9px 18px', borderRadius: 10, fontWeight: 600, cursor: 'pointer', fontSize: 13, opacity: followupAllLoading ? 0.7 : 1 }}
+                >
+                  {followupAllLoading ? '⏳ Triggering...' : '🚀 Follow-Up ALL'}
+                </button>
+                <button
+                  id="contacts-add-customer-btn"
+                  onClick={() => setShowAddCustomerModal(true)}
+                  style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.4)', padding: '9px 18px', borderRadius: 10, fontWeight: 600, cursor: 'pointer', fontSize: 13 }}
+                >
+                  + Add Customer
+                </button>
+                <button
+                  onClick={() => refreshCustomers()}
+                  style={{ background: 'transparent', color: '#94a3b8', border: '1px solid rgba(148,163,184,0.3)', padding: '9px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 13 }}
+                  title="Refresh"
+                >⟳</button>
+              </div>
+            </div>
+
+            {/* Search */}
+            <div style={{ position: 'relative', marginBottom: 16, maxWidth: 360 }}>
+              <span className="material-symbols-outlined" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 18, color: '#64748b' }}>search</span>
+              <input
+                id="contacts-search-input"
+                type="text"
+                placeholder="Search by name, place..."
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                style={{ width: '100%', padding: '9px 12px 9px 38px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.25)', background: 'rgba(15,23,42,0.5)', color: '#e2e8f0', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
+              />
+            </div>
+
+            {/* Customers Table */}
+            {isCustomersLoading ? (
+              <div style={{ textAlign: 'center', color: '#64748b', padding: '60px 0' }}>Loading customers...</div>
+            ) : customers.length === 0 ? (
+              <div style={{ textAlign: 'center', color: '#64748b', padding: '60px 0' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 48, display: 'block', marginBottom: 12 }}>people_outline</span>
+                <p style={{ margin: 0, fontSize: 15 }}>No customers yet</p>
+                <p style={{ margin: '6px 0 0', fontSize: 12 }}>Click "Add Customer" to get started</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(148,163,184,0.15)' }}>
+                      {['Customer Name','Contact No','Place','Amount Due','Ageing','Status','Action'].map(h => (
+                        <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customers
+                      .filter(c => {
+                        const q = customerSearch.toLowerCase();
+                        return !q || c.name?.toLowerCase().includes(q) || c.place?.toLowerCase().includes(q) || c.contactNo?.includes(q);
+                      })
+                      .map(c => {
+                        const agingColor = { current: '#22c55e', '0-30': '#f59e0b', '31-60': '#f97316', '61-90': '#ef4444', '90+': '#7f1d1d' };
+                        return (
+                          <tr key={c._id} style={{ borderBottom: '1px solid rgba(148,163,184,0.08)', transition: 'background 0.15s', cursor: 'pointer' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.06)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <td style={{ padding: '12px 14px', fontWeight: 600, color: '#e2e8f0' }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+                                  {c.name?.[0]?.toUpperCase() || '?'}
+                                </span>
+                                {c.name}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 14px', color: '#94a3b8' }}>{c.contactNo || '—'}</td>
+                            <td style={{ padding: '12px 14px', color: '#94a3b8' }}>{c.place || '—'}</td>
+                            <td style={{ padding: '12px 14px', fontWeight: 600, color: c.totalDue > 0 ? '#f87171' : '#22c55e' }}>
+                              {formatCurrency(c.totalDue || 0)}
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: agingColor[c.agingBucket || 'current'] + '22', color: agingColor[c.agingBucket || 'current'] }}>
+                                {c.agingBucket || 'Current'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: c.status === 'Active' ? '#22c55e22' : '#ef444422', color: c.status === 'Active' ? '#22c55e' : '#ef4444' }}>
+                                {c.status}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button
+                                  id={`contacts-view-btn-${c._id}`}
+                                  onClick={() => openCustomerDrawer(c._id)}
+                                  style={{ fontSize: 11, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.1)', color: '#818cf8', cursor: 'pointer', fontWeight: 600 }}
+                                >View</button>
+                                <button
+                                  id={`contacts-followup-btn-${c._id}`}
+                                  onClick={async () => {
+                                    const token = localStorage.getItem('authToken');
+                                    if (!token) return;
+                                    try {
+                                      const res = await fetch(apiUrl(`/api/customers/${c._id}/trigger-followup`), { method: 'POST', headers: getAuthHeaders(token), body: JSON.stringify({ channel: 'voiceCall' }) });
+                                      const d = await res.json();
+                                      alert(d.message || 'Follow-up triggered');
+                                    } catch(e) { alert('Error: ' + e.message); }
+                                  }}
+                                  style={{ fontSize: 11, padding: '5px 10px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
+                                >Follow-Up</button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* ── Add Customer Modal ─────────────────────────────────────────── */}
+            {showAddCustomerModal && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
+                <div style={{ background: '#0f172a', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 460, boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
+                  <h3 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: '#e2e8f0' }}>Add New Customer</h3>
+                  {[
+                    { key: 'name', label: 'Customer Name *', placeholder: 'e.g. Rajesh Traders', type: 'text' },
+                    { key: 'contactNo', label: 'Contact Number', placeholder: 'e.g. +919876543210', type: 'text' },
+                    { key: 'email', label: 'Email', placeholder: 'e.g. rajesh@example.com', type: 'email' },
+                    { key: 'place', label: 'City / Place', placeholder: 'e.g. Mumbai', type: 'text' },
+                    { key: 'notes', label: 'Notes', placeholder: 'Optional notes...', type: 'text' },
+                  ].map(f => (
+                    <div key={f.key} style={{ marginBottom: 14 }}>
+                      <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 5 }}>{f.label}</label>
+                      <input
+                        id={`add-customer-${f.key}`}
+                        type={f.type}
+                        placeholder={f.placeholder}
+                        value={newCustomerForm[f.key]}
+                        onChange={e => setNewCustomerForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(30,41,59,0.8)', color: '#e2e8f0', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
+                      />
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                    <button onClick={() => { setShowAddCustomerModal(false); setNewCustomerForm({ name: '', contactNo: '', email: '', place: '', notes: '' }); }}
+                      style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(148,163,184,0.2)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}>
+                      Cancel
+                    </button>
+                    <button
+                      id="add-customer-submit-btn"
+                      onClick={handleAddCustomer}
+                      disabled={addCustomerLoading}
+                      style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', cursor: 'pointer', fontWeight: 600, opacity: addCustomerLoading ? 0.7 : 1 }}>
+                      {addCustomerLoading ? 'Saving...' : 'Add Customer'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Customer Activity Drawer ───────────────────────────────────── */}
+            {customerDrawerOpen && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 900, display: 'flex' }}>
+                {/* backdrop */}
+                <div style={{ flex: 1, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} onClick={closeCustomerDrawer} />
+                {/* drawer panel */}
+                <div style={{ width: '100%', maxWidth: 520, background: '#0f172a', borderLeft: '1px solid rgba(99,102,241,0.25)', overflowY: 'auto', padding: 28, boxShadow: '-20px 0 60px rgba(0,0,0,0.5)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#e2e8f0' }}>
+                      {isDrawerLoading ? 'Loading...' : customerActivity?.customer?.name || 'Customer'}
+                    </h3>
+                    <button onClick={closeCustomerDrawer} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>✕</button>
+                  </div>
+
+                  {isDrawerLoading ? (
+                    <div style={{ color: '#64748b', textAlign: 'center', padding: '40px 0' }}>Loading activity...</div>
+                  ) : customerActivity ? (
+                    <>
+                      {/* Customer info row */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+                        {[
+                          { label: 'Contact', value: customerActivity.customer?.contactNo || '—' },
+                          { label: 'Email', value: customerActivity.customer?.email || '—' },
+                          { label: 'Place', value: customerActivity.customer?.place || '—' },
+                          { label: 'Status', value: customerActivity.customer?.status || '—' },
+                        ].map(item => (
+                          <div key={item.label} style={{ background: 'rgba(30,41,59,0.6)', borderRadius: 10, padding: '10px 14px' }}>
+                            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 3 }}>{item.label}</div>
+                            <div style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 600 }}>{item.value}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Summary stats */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
+                        <div style={{ background: 'rgba(239,68,68,0.1)', borderRadius: 10, padding: '12px 16px', border: '1px solid rgba(239,68,68,0.2)' }}>
+                          <div style={{ fontSize: 11, color: '#ef4444', marginBottom: 3 }}>Total Outstanding</div>
+                          <div style={{ fontSize: 20, fontWeight: 700, color: '#f87171' }}>{formatCurrency(customerActivity.summary?.totalDue || 0)}</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>{customerActivity.summary?.pendingCount || 0} pending invoices</div>
+                        </div>
+                        <div style={{ background: 'rgba(34,197,94,0.1)', borderRadius: 10, padding: '12px 16px', border: '1px solid rgba(34,197,94,0.2)' }}>
+                          <div style={{ fontSize: 11, color: '#22c55e', marginBottom: 3 }}>Total Collected</div>
+                          <div style={{ fontSize: 20, fontWeight: 700, color: '#4ade80' }}>{formatCurrency(customerActivity.summary?.paidAmount || 0)}</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>{customerActivity.summary?.paidCount || 0} paid invoices</div>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+                        <button
+                          onClick={async () => {
+                            const token = localStorage.getItem('authToken');
+                            if (!token) return;
+                            const r = await fetch(apiUrl(`/api/customers/${selectedCustomerId}/trigger-followup`), { method: 'POST', headers: getAuthHeaders(token), body: JSON.stringify({ channel: 'voiceCall' }) });
+                            const d = await r.json();
+                            alert(d.message || 'Follow-up triggered');
+                          }}
+                          style={{ flex: 1, minWidth: 120, padding: '9px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                        >🚀 Send Follow-Up</button>
+                        <button
+                          onClick={() => handleToggleFollowUp(selectedCustomerId, customerActivity.customer?.followUpEnabled)}
+                          style={{ flex: 1, minWidth: 120, padding: '9px 14px', borderRadius: 8, border: '1px solid rgba(148,163,184,0.25)', background: 'transparent', color: customerActivity.customer?.followUpEnabled ? '#ef4444' : '#22c55e', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                        >{customerActivity.customer?.followUpEnabled ? '⏸ Stop Follow-Up' : '▶ Start Follow-Up'}</button>
+                      </div>
+
+                      {/* Invoices list */}
+                      <h4 style={{ fontSize: 14, fontWeight: 700, color: '#94a3b8', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invoices ({customerActivity.dues?.length || 0})</h4>
+                      {(customerActivity.dues || []).length === 0 ? (
+                        <p style={{ color: '#64748b', fontSize: 13 }}>No invoices linked to this customer yet.</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {(customerActivity.dues || []).map(due => {
+                            const statusColor = { PAID: '#22c55e', UNPAID: '#f59e0b', OVERDUE: '#ef4444', PTP: '#8b5cf6', VERIFYING: '#06b6d4' };
+                            const agingColor = { current: '#22c55e', '0-30': '#f59e0b', '31-60': '#f97316', '61-90': '#ef4444', '90+': '#7f1d1d' };
+                            return (
+                              <div key={due._id} style={{ background: 'rgba(30,41,59,0.5)', borderRadius: 10, padding: '12px 14px', border: '1px solid rgba(148,163,184,0.1)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                  <div>
+                                    <div style={{ fontWeight: 600, color: '#e2e8f0', fontSize: 13 }}>{due.title}</div>
+                                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
+                                      {due.invoiceNo ? `#${due.invoiceNo} · ` : ''} Due {formatDate(due.dueDate)}
+                                    </div>
+                                  </div>
+                                  <div style={{ textAlign: 'right' }}>
+                                    <div style={{ fontWeight: 700, fontSize: 14, color: due.status === 'PAID' ? '#4ade80' : '#f87171' }}>{formatCurrency(due.amount)}</div>
+                                    <div style={{ display: 'flex', gap: 4, marginTop: 4, justifyContent: 'flex-end' }}>
+                                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: (statusColor[due.status] || '#94a3b8') + '22', color: statusColor[due.status] || '#94a3b8' }}>
+                                        {due.status}
+                                      </span>
+                                      {due.status !== 'PAID' && (
+                                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: (agingColor[due.agingBucket || 'current']) + '22', color: agingColor[due.agingBucket || 'current'] }}>
+                                          {due.agingBucket || 'Current'}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                {due.status !== 'PAID' && (
+                                  <div style={{ marginTop: 10, display: 'flex', gap: 6 }}>
+                                    <button
+                                      onClick={async () => {
+                                        const token = localStorage.getItem('authToken');
+                                        if (!token) return;
+                                        if (!window.confirm('Mark this invoice as PAID?')) return;
+                                        const r = await fetch(apiUrl(`/api/dues/${due._id}/pay`), { method: 'PATCH', headers: getAuthHeaders(token) });
+                                        if (r.ok) { await loadCustomerActivity(selectedCustomerId); await refreshCustomers(); }
+                                        else alert('Failed to mark as paid');
+                                      }}
+                                      style={{ fontSize: 11, padding: '5px 10px', borderRadius: 6, border: '1px solid rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.1)', color: '#22c55e', cursor: 'pointer', fontWeight: 600 }}
+                                    >✓ Mark Paid</button>
+                                    <button
+                                      onClick={async () => {
+                                        const token = localStorage.getItem('authToken');
+                                        if (!token) return;
+                                        const r = await fetch(apiUrl(`/api/dues/${due._id}/snooze`), { method: 'PATCH', headers: getAuthHeaders(token), body: JSON.stringify({ snoozeDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() }) });
+                                        if (r.ok) { await loadCustomerActivity(selectedCustomerId); await refreshCustomers(); }
+                                        else alert('Failed to snooze');
+                                      }}
+                                      style={{ fontSize: 11, padding: '5px 10px', borderRadius: 6, border: '1px solid rgba(148,163,184,0.25)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}
+                                    >⏰ Snooze 7d</button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'finance' ? (
           <div className="finance-dashboard glass-panel rounded-2xl shadow-xl">
             <div className="finance-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
               <div>

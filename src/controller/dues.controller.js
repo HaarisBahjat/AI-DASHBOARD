@@ -4,20 +4,45 @@ const llmService = require('../Service/llm.service');
 // Create a new due
 exports.createDue = async (req, res) => {
     try {
-        const { amount, title, dueDate } = req.body;
+        const { amount, title, dueDate, customerId, invoiceNo } = req.body;
+
+        // ─ Input validation ────────────────────────────────────────────
         if (!amount || !title || !dueDate) {
             return res.status(400).json({ message: 'Amount, title and due date are required' });
         }
+
+        // [SECURITY] Amount bounds — prevents Razorpay paise overflow & analytics corruption
+        const MAX_AMOUNT = parseInt(process.env.MAX_PAYMENT_AMOUNT || '10000000', 10);
+        const parsedAmount = Number(amount);
+        if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || parsedAmount > MAX_AMOUNT) {
+            return res.status(400).json({ message: `Amount must be between 1 and ${MAX_AMOUNT}` });
+        }
+
+        // [SECURITY] Field length limits — prevents storage abuse
+        if (typeof title !== 'string' || title.trim().length === 0 || title.trim().length > 200) {
+            return res.status(400).json({ message: 'Title must be between 1 and 200 characters' });
+        }
+        if (invoiceNo && String(invoiceNo).length > 50) {
+            return res.status(400).json({ message: 'Invoice number must be 50 characters or less' });
+        }
+
+        const parsedDate = new Date(dueDate);
+        if (isNaN(parsedDate.getTime())) {
+            return res.status(400).json({ message: 'Invalid due date format' });
+        }
+
         const NewDue = await Dues.create({
             userId: req.user._id,
-            amount,
-            title,
-            dueDate
+            amount: parsedAmount,
+            title: title.trim(),
+            dueDate: parsedDate,
+            customerId: customerId || null,
+            invoiceNo: invoiceNo ? String(invoiceNo).trim() : null,
         });
         res.status(201).json({ message: 'Due created successfully', due: NewDue });
     } catch (error) {
-        console.log('createDue Error:', error.message);
-        res.status(500).json({ message: 'Error creating due', error: error.message });
+        console.error('createDue Error:', error.message);
+        res.status(500).json({ message: 'Error creating due' });
     }
 };
 
@@ -54,11 +79,27 @@ exports.updatedueStatus = async (req,res) =>{
 // Snooze a due and push reminders/status checks to a future date
 exports.snoozeDue = async (req, res) => {
     try {
+        // [SECURITY] Cap snooze to prevent permanent silence (same cap as WhatsApp bot)
+        const MAX_SNOOZE_DAYS = parseInt(process.env.MAX_SNOOZE_DAYS || '30', 10);
+        const maxAllowedDate = new Date(Date.now() + MAX_SNOOZE_DAYS * 24 * 60 * 60 * 1000);
+
         const rawSnoozeDate = req.body?.snoozeDate;
         const snoozeDate = rawSnoozeDate ? new Date(rawSnoozeDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
         if (Number.isNaN(snoozeDate.getTime())) {
             return res.status(400).json({ message: 'Invalid snooze date' });
+        }
+
+        // Reject dates in the past
+        if (snoozeDate <= new Date()) {
+            return res.status(400).json({ message: 'Snooze date must be in the future' });
+        }
+
+        // Enforce the maximum snooze cap
+        if (snoozeDate > maxAllowedDate) {
+            return res.status(400).json({
+                message: `Snooze date cannot exceed ${MAX_SNOOZE_DAYS} days from today`
+            });
         }
 
         const due = await Dues.findOneAndUpdate(
@@ -73,7 +114,7 @@ exports.snoozeDue = async (req, res) => {
 
         res.status(200).json({ message: 'Due snoozed successfully', due });
     } catch (error) {
-        res.status(500).json({ message: 'Error snoozing due', error: error.message });
+        res.status(500).json({ message: 'Error snoozing due' });
     }
 };
 

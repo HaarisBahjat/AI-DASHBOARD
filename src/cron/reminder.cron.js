@@ -131,8 +131,22 @@ const reminderHandler = async () => {
 
         // ── Step 1: Create individual DB reminders + WhatsApp per due ──────────
         // (UI cards + WhatsApp messages are per-due so the user sees each item)
+        const { Reminder, CallLog } = require('../models/db');
+        const twentyHoursAgo = new Date(Date.now() - 20 * 60 * 60 * 1000);
+
         for (const due of overdueDues) {
             try {
+                // [SECURITY / DEDUP] Skip if an OVERDUE reminder was already sent for this due in the last 20 hours
+                const existingReminder = await Reminder.findOne({
+                    dueId: due._id,
+                    reminderType: 'OVERDUE',
+                    createdAt: { $gte: twentyHoursAgo }
+                });
+                if (existingReminder) {
+                    console.log(`[Reminder Cron] Skipping due ${due._id} — reminder already sent in last 20h.`);
+                    continue;
+                }
+
                 await require('../Service/reminder.service').createReminderNoCall({
                     userId: due.userId,
                     due: due,
@@ -149,7 +163,7 @@ const reminderHandler = async () => {
         }
 
         // ── Step 2: ONE group voice call covering all overdue dues ─────────────
-        // Group dues by userId so each user gets exactly one call
+        // Group dues by userId so each user gets at most one call per day
         if (overdueDues.length > 0) {
             const byUser = {};
             for (const due of overdueDues) {
@@ -163,6 +177,16 @@ const reminderHandler = async () => {
 
             for (const [userId, userDues] of Object.entries(byUser)) {
                 try {
+                    // [SECURITY / DEDUP] Skip call if user was already called in the last 20 hours
+                    const recentCall = await CallLog.findOne({
+                        userId,
+                        createdAt: { $gte: twentyHoursAgo }
+                    });
+                    if (recentCall) {
+                        console.log(`[Twilio] User ${userId} already called in last 20h — skipping duplicate group call.`);
+                        continue;
+                    }
+
                     const user = await User.findById(userId).select('phone').lean();
                     if (!user || !user.phone) {
                         console.log(`[Twilio] No phone for user ${userId} — skipping group call.`);

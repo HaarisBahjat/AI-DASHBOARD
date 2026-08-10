@@ -14,7 +14,7 @@ router.post('/:conversationId/message', auth, conversationController.addMessage)
 router.post('/:conversationId/messages', auth, conversationController.addMessage);
 router.delete('/:conversationId', auth, conversationController.deleteConversation);
 router.post('/:conversationId/complete', auth, conversationController.completeConversation);
-// Handle multer errors
+// Handle multer error
 const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {

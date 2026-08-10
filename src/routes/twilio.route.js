@@ -62,8 +62,12 @@ if (!BASE_URL) {
 function validateTwilioSignature(req, res, next) {
     const token = process.env.TWILIO_AUTH_TOKEN;
     if (!token) {
-        // No token configured — skip in local dev, warn loudly
-        console.warn('[Twilio] TWILIO_AUTH_TOKEN not set — skipping signature validation!');
+        // [SECURITY] Hard-fail in production — misconfigured server must not accept webhooks
+        if (process.env.NODE_ENV === 'production') {
+            console.error('[Twilio] TWILIO_AUTH_TOKEN not set in production — rejecting request!');
+            return res.status(500).send('Server misconfiguration: Twilio auth not configured');
+        }
+        console.warn('[Twilio] TWILIO_AUTH_TOKEN not set — skipping signature validation in dev');
         return next();
     }
     const fullUrl = BASE_URL + req.originalUrl;
@@ -233,7 +237,7 @@ async function saveCallLog({ userId, dueId, turns, intent, snoozeDays, outcome, 
 // Query params (set by makeVoiceCall):
 //   CallSid, dueId, userId, title, amount, dueDate
 // ═══════════════════════════════════════════════════════════════════════════
-router.get('/voice-twiml', async (req, res) => {
+router.get('/voice-twiml', validateTwilioSignature, async (req, res) => {
     const {
         CallSid = '',
         dueId = '',
@@ -285,7 +289,7 @@ router.get('/voice-twiml', async (req, res) => {
 // Batched version — one call covers ALL overdue dues for the user.
 // Query params: userId, dues (JSON array of {dueId,title,amount,dueDate})
 // ═══════════════════════════════════════════════════════════════════════════
-router.get('/voice-twiml-group', async (req, res) => {
+router.get('/voice-twiml-group', validateTwilioSignature, async (req, res) => {
     const { CallSid = '', userId = '', dues: duesRaw = '[]' } = req.query;
 
     let dues = [];
@@ -523,6 +527,13 @@ router.post('/webhook', validateTwilioSignature, async (req, res) => {
         const bodyRaw = (req.body.Body || '').trim();
         const bodyUpper = bodyRaw.toUpperCase();
 
+        // [SECURITY] Reject suspiciously long messages (>200 chars) to prevent abuse
+        if (bodyRaw.length > 200) {
+            twiml.message('Message too long. Use: PAID ALL, PAID #invoiceNo, SNOOZE <days>, or STATUS.');
+            res.type('text/xml');
+            return res.send(twiml.toString());
+        }
+
         const user = await User.findOne({ phone: fromNumber });
         if (!user) {
             twiml.message("Sorry, we couldn't find an account linked to this number.");
@@ -530,22 +541,48 @@ router.post('/webhook', validateTwilioSignature, async (req, res) => {
             return res.send(twiml.toString());
         }
 
-        if (bodyUpper === 'PAID') {
-            const due = await Dues.findOneAndUpdate(
+        // ── PAID ALL — mark every outstanding due as PAID ─────────────────────
+        if (bodyUpper === 'PAID ALL') {
+            const result = await Dues.updateMany(
                 { userId: user._id, status: { $in: ['OVERDUE', 'UNPAID'] } },
+                { status: 'PAID', snoozeDate: null }
+            );
+            twiml.message(result.modifiedCount > 0
+                ? `✅ Marked ${result.modifiedCount} due(s) as PAID. Thank you!`
+                : `ℹ️ No outstanding dues found for your account.`
+            );
+
+        // ── PAID #invoiceNo or PAID <title keyword> — target a specific due ───
+        } else if (bodyUpper.startsWith('PAID ')) {
+            const query = bodyRaw.slice(5).trim(); // everything after "PAID "
+            const isInvoiceRef = query.startsWith('#');
+            const searchVal = isInvoiceRef ? query.slice(1) : query;
+
+            // Build a targeted filter — match by invoiceNo or partial title
+            const filter = {
+                userId: user._id,
+                status: { $in: ['OVERDUE', 'UNPAID'] },
+                ...(isInvoiceRef
+                    ? { invoiceNo: searchVal }                           // exact invoice number match
+                    : { title: { $regex: searchVal, $options: 'i' } }   // case-insensitive title search
+                )
+            };
+
+            const due = await Dues.findOneAndUpdate(
+                filter,
                 { status: 'PAID', snoozeDate: null },
                 { new: true, sort: { dueDate: 1 } }
             );
             twiml.message(due
-                ? `✅ Your due "${due.title}" of $${due.amount} is now marked PAID. Thank you!`
-                : `ℹ️ No outstanding dues found for your account.`
+                ? `✅ "${due.title}" (₹${due.amount}) marked PAID. Thank you!`
+                : `⚠️ No matching due found for "${query}". Reply STATUS to see your dues.`
             );
 
+        // ── SNOOZE <days> — postpone reminders ────────────────────────────────
         } else if (bodyUpper.startsWith('SNOOZE')) {
-            // [C] Cap snooze days to prevent abuse (e.g. SNOOZE 9999)
             const MAX_SNOOZE_DAYS = parseInt(process.env.MAX_SNOOZE_DAYS || '30', 10);
             const requestedDays = parseInt((bodyRaw.split(/\s+/)[1] || '3'), 10) || 3;
-            const days = Math.min(requestedDays, MAX_SNOOZE_DAYS);
+            const days = Math.min(Math.max(requestedDays, 1), MAX_SNOOZE_DAYS);
             const snoozeDate = new Date();
             snoozeDate.setDate(snoozeDate.getDate() + days);
             const result = await Dues.updateMany(
@@ -554,22 +591,35 @@ router.post('/webhook', validateTwilioSignature, async (req, res) => {
             );
             twiml.message(`⏰ Snoozed ${result.modifiedCount} due(s) for ${days} day(s). We'll remind you on ${snoozeDate.toDateString()}.`);
 
+        // ── STATUS — view outstanding dues ────────────────────────────────────
         } else if (bodyUpper === 'STATUS') {
-            const [unpaid, overdue] = await Promise.all([
-                Dues.countDocuments({ userId: user._id, status: 'UNPAID' }),
-                Dues.countDocuments({ userId: user._id, status: 'OVERDUE' }),
-            ]);
-            twiml.message(
-                `📊 Your dues:\n• Unpaid: ${unpaid}\n• Overdue: ${overdue}\n\n` +
-                `Reply PAID to mark paid, or SNOOZE <days> to postpone.`
-            );
+            const dues = await Dues.find(
+                { userId: user._id, status: { $in: ['UNPAID', 'OVERDUE'] } },
+                'title amount status dueDate invoiceNo'
+            ).sort({ dueDate: 1 }).limit(5);
 
+            if (dues.length === 0) {
+                twiml.message('✅ You have no outstanding dues.');
+            } else {
+                const lines = dues.map((d, i) => {
+                    const ref = d.invoiceNo ? ` (#${d.invoiceNo})` : '';
+                    return `${i + 1}. "${d.title}"${ref} — ₹${d.amount} [${d.status}]`;
+                }).join('\n');
+                twiml.message(
+                    `📊 Outstanding dues (${dues.length}):\n${lines}\n\n` +
+                    `Reply:\n• PAID #invoiceNo — mark specific due paid\n• PAID ALL — mark all paid\n• SNOOZE <days> — postpone`
+                );
+            }
+
+        // ── HELP / unknown command ────────────────────────────────────────────
         } else {
             twiml.message(
-                `🤖 AI Dashboard Bot\n\nCommands:\n` +
-                `• PAID — mark your most recent due as paid\n` +
-                `• SNOOZE <days> — postpone reminders\n` +
-                `• STATUS — view your dues`
+                `🤖 BusinessBook Bot\n\nCommands:\n` +
+                `• PAID ALL — mark all dues paid\n` +
+                `• PAID #invoiceNo — mark specific invoice paid\n` +
+                `• PAID <title> — mark due by name\n` +
+                `• SNOOZE <days> — postpone reminders (max ${process.env.MAX_SNOOZE_DAYS || 30} days)\n` +
+                `• STATUS — view outstanding dues`
             );
         }
     } catch (err) {
