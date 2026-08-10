@@ -253,20 +253,32 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer, userId, fallb
       }
 
       let linkedCustomerId = null;
-      if (intentData.customerName) {
-        const matchCust = await Customer.findOne({ userId, name: new RegExp(intentData.customerName.trim(), 'i') });
-        if (matchCust) linkedCustomerId = matchCust._id;
+      let customerNameLabel = "";
+      if (intentData.customerName && intentData.customerName.trim()) {
+        const custName = intentData.customerName.trim();
+        let matchCust = await Customer.findOne({ userId, name: new RegExp(custName, 'i') });
+        if (!matchCust) {
+          // Auto-create customer contact on the fly so invoice is linked!
+          matchCust = await Customer.create({
+            userId,
+            name: custName,
+            status: 'Active',
+            followUpEnabled: true
+          });
+        }
+        linkedCustomerId = matchCust._id;
+        customerNameLabel = ` for customer **${matchCust.name}**`;
       }
 
       const newDue= await Due.create({
         userId,
         customerId: linkedCustomerId,
-        title:intentData.title,
-        amount:intentData.amount,
-        dueDate:parsedDate,
-        category:intentData.category || "general"
+        title: intentData.title,
+        amount: intentData.amount,
+        dueDate: parsedDate,
+        category: intentData.category || "general"
       });
-      replytext=`Your due "${newDue.title}" of amount ₹${newDue.amount} has been added successfully with due date ${newDue.dueDate.toDateString()}.`;
+      replytext=`Your due "${newDue.title}" of amount ₹${newDue.amount}${customerNameLabel} has been added successfully with due date ${newDue.dueDate.toDateString()}.`;
       return finalizeReply(currentSession, replytext);
     }
     //UPDATE DUE INTENT LOGIC

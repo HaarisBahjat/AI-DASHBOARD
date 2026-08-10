@@ -36,6 +36,11 @@ Important: Always return intent in LOWERCASE. Valid intents are ONLY:
 - financial_advice
 - general_chat
 
+When creating a due (intent: "create_due"):
+- If the user specifies a customer name (e.g. "for Rajesh Traders", "customer Sharma"), extract it as customerName.
+- If the user specifies an item/bill title (e.g. "title entertainment", "Rent bill", "Electricity"), extract it as title.
+- Do NOT mix up title and customerName.
+
 If the user asks about a specific customer (e.g. "Who is Rajesh Traders?", "Tell me about Rajesh Traders", "Show info for Sharma Electronics") → use "get_customer_info" and extract customerName.
 If the user asks for dues/invoices of a specific customer (e.g. "give me dues of customer named haarismalick", "show dues for Rajesh Traders", "invoices of Sharma") → use "list_dues" and extract customerName.
 If the user asks to list all customers (e.g. "Show my customers", "List customers") → use "list_customers".
