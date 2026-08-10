@@ -267,6 +267,11 @@ function VoiceChat({ onLogout, profile }) {
   const [newInvoiceForm, setNewInvoiceForm] = useState({ title: '', amount: '', dueDate: '', invoiceNo: '' });
   const [addInvoiceLoading, setAddInvoiceLoading] = useState(false);
 
+  // ── Customer Edit state ─────────────────────────────────────────────────────
+  const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
+  const [editCustomerForm, setEditCustomerForm] = useState({ id: '', name: '', contactNo: '', email: '', place: '', notes: '' });
+  const [editCustomerLoading, setEditCustomerLoading] = useState(false);
+
   const profileInitials = useMemo(() => {
     const displayName = profile?.name || 'User';
     const source = displayName.trim();
@@ -453,6 +458,49 @@ function VoiceChat({ onLogout, profile }) {
       alert('Error: ' + err.message);
     } finally {
       setAddCustomerLoading(false);
+    }
+  };
+
+  const openEditCustomerModal = (customer) => {
+    setEditCustomerForm({
+      id: customer._id,
+      name: customer.name || '',
+      contactNo: customer.contactNo || '',
+      email: customer.email || '',
+      place: customer.place || '',
+      notes: customer.notes || '',
+    });
+    setShowEditCustomerModal(true);
+  };
+
+  const handleUpdateCustomer = async () => {
+    if (!editCustomerForm.name.trim()) { alert('Customer name is required'); return; }
+    const token = localStorage.getItem('authToken');
+    if (!token || !editCustomerForm.id) return;
+    setEditCustomerLoading(true);
+    try {
+      const res = await fetch(apiUrl(`/api/customers/${editCustomerForm.id}`), {
+        method: 'PUT',
+        headers: getAuthHeaders(token),
+        body: JSON.stringify({
+          name: editCustomerForm.name.trim(),
+          contactNo: editCustomerForm.contactNo?.trim() || null,
+          email: editCustomerForm.email?.trim() || null,
+          place: editCustomerForm.place?.trim() || null,
+          notes: editCustomerForm.notes?.trim() || null,
+        }),
+      });
+      const data = await safeJsonParse(res);
+      if (!res.ok) throw new Error(data.message || 'Failed to update customer');
+      setShowEditCustomerModal(false);
+      await refreshCustomers(token);
+      if (selectedCustomerId === editCustomerForm.id) {
+        await loadCustomerActivity(editCustomerForm.id);
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setEditCustomerLoading(false);
     }
   };
 
@@ -1879,16 +1927,21 @@ function VoiceChat({ onLogout, profile }) {
                                 {c.status}
                               </span>
                             </td>
-                            <td style={{ padding: '12px 14px' }}>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <button
-                                  id={`contacts-view-btn-${c._id}`}
-                                  onClick={() => openCustomerDrawer(c._id)}
-                                  style={{ fontSize: 11, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.1)', color: '#818cf8', cursor: 'pointer', fontWeight: 600 }}
-                                >View</button>
-                                <button
-                                  id={`contacts-followup-btn-${c._id}`}
-                                  onClick={async () => {
+                              <td style={{ padding: '12px 14px' }}>
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  <button
+                                    id={`contacts-view-btn-${c._id}`}
+                                    onClick={() => openCustomerDrawer(c._id)}
+                                    style={{ fontSize: 11, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.1)', color: '#818cf8', cursor: 'pointer', fontWeight: 600 }}
+                                  >View</button>
+                                  <button
+                                    id={`contacts-edit-btn-${c._id}`}
+                                    onClick={() => openEditCustomerModal(c)}
+                                    style={{ fontSize: 11, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(148,163,184,0.3)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}
+                                  >Edit</button>
+                                  <button
+                                    id={`contacts-followup-btn-${c._id}`}
+                                    onClick={async () => {
                                     const token = localStorage.getItem('authToken');
                                     if (!token) return;
                                     try {
@@ -1950,6 +2003,47 @@ function VoiceChat({ onLogout, profile }) {
               </div>
             )}
 
+            {/* ── Edit Customer Modal ─────────────────────────────────────────── */}
+            {showEditCustomerModal && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
+                <div style={{ background: '#0f172a', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 16, padding: 28, width: '100%', maxWidth: 460, boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
+                  <h3 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: '#e2e8f0' }}>Edit Customer Info</h3>
+                  {[
+                    { key: 'name', label: 'Customer Name *', placeholder: 'e.g. Rajesh Traders', type: 'text' },
+                    { key: 'contactNo', label: 'Contact Number (E.164 e.g. +919876543210)', placeholder: 'e.g. +919876543210', type: 'text' },
+                    { key: 'email', label: 'Email', placeholder: 'e.g. rajesh@example.com', type: 'email' },
+                    { key: 'place', label: 'City / Place', placeholder: 'e.g. Mumbai', type: 'text' },
+                    { key: 'notes', label: 'Notes', placeholder: 'Optional notes...', type: 'text' },
+                  ].map(f => (
+                    <div key={f.key} style={{ marginBottom: 14 }}>
+                      <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 5 }}>{f.label}</label>
+                      <input
+                        id={`edit-customer-${f.key}`}
+                        type={f.type}
+                        placeholder={f.placeholder}
+                        value={editCustomerForm[f.key]}
+                        onChange={e => setEditCustomerForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(30,41,59,0.8)', color: '#e2e8f0', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}
+                      />
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                    <button onClick={() => setShowEditCustomerModal(false)}
+                      style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid rgba(148,163,184,0.2)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}>
+                      Cancel
+                    </button>
+                    <button
+                      id="edit-customer-submit-btn"
+                      onClick={handleUpdateCustomer}
+                      disabled={editCustomerLoading}
+                      style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', cursor: 'pointer', fontWeight: 600, opacity: editCustomerLoading ? 0.7 : 1 }}>
+                      {editCustomerLoading ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ── Customer Activity Drawer ───────────────────────────────────── */}
             {customerDrawerOpen && (
               <div style={{ position: 'fixed', inset: 0, zIndex: 900, display: 'flex' }}>
@@ -1958,9 +2052,17 @@ function VoiceChat({ onLogout, profile }) {
                 {/* drawer panel */}
                 <div style={{ width: '100%', maxWidth: 520, background: '#0f172a', borderLeft: '1px solid rgba(99,102,241,0.25)', overflowY: 'auto', padding: 28, boxShadow: '-20px 0 60px rgba(0,0,0,0.5)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#e2e8f0' }}>
-                      {isDrawerLoading ? 'Loading...' : customerActivity?.customer?.name || 'Customer'}
-                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#e2e8f0' }}>
+                        {isDrawerLoading ? 'Loading...' : customerActivity?.customer?.name || 'Customer'}
+                      </h3>
+                      {customerActivity?.customer && (
+                        <button
+                          onClick={() => openEditCustomerModal(customerActivity.customer)}
+                          style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(148,163,184,0.3)', background: 'transparent', color: '#818cf8', cursor: 'pointer', fontWeight: 600 }}
+                        >✏️ Edit</button>
+                      )}
+                    </div>
                     <button onClick={closeCustomerDrawer} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>✕</button>
                   </div>
 
