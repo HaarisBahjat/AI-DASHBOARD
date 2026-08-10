@@ -4,6 +4,7 @@ const { textToSpeech } = require("./tts.service");
 const mongoose = require("mongoose");
 
 const { ConversationSession, Conversation, Dues: Due, Customer, User } = require('../models/db');
+const conversationMessage = Conversation;
 const twilioService = require('./twilio.service');
 
 // Helper function to validate MongoDB ObjectId
