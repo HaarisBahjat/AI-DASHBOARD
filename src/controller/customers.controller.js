@@ -316,8 +316,7 @@ exports.getCustomerActivity = async (req, res) => {
 
 // ── POST /api/customers/:id/trigger-followup ─────────────────────────────────
 /**
- * Manually trigger an AI follow-up for a single customer.
- * For Phase 1 this stubs a response; Phase 3 will invoke the Twilio/WhatsApp dispatcher.
+ * Trigger an actual AI follow-up (Voice Call or WhatsApp) for a single customer.
  */
 exports.triggerFollowup = async (req, res) => {
   try {
@@ -336,24 +335,60 @@ exports.triggerFollowup = async (req, res) => {
 
     const { channel = 'voiceCall' } = req.body;
 
-    // ── Phase 3 will call the Twilio/WhatsApp dispatcher here ──
-    // For now return a stub acknowledging the trigger.
+    // Fetch outstanding dues for this customer
+    const dues = await Dues.find({
+      customerId: customer._id,
+      userId: req.user._id,
+      status: { $in: ['UNPAID', 'OVERDUE', 'PTP'] },
+    }).lean();
+
+    if (dues.length === 0) {
+      return res.status(400).json({ message: `${customer.name} has no outstanding dues` });
+    }
+
+    // Determine target phone number — use customer.contactNo or fallback to user phone
+    const targetPhone = customer.contactNo || req.user.phone;
+    if (!targetPhone) {
+      return res.status(400).json({ message: `No phone number on file for ${customer.name}. Please edit customer details to add phone number.` });
+    }
+
+    const twilioService = require('../Service/twilio.service');
+
+    let dispatchResult = null;
+    if (channel === 'voiceCall') {
+      if (dues.length === 1) {
+        dispatchResult = await twilioService.makeVoiceCall(targetPhone, {
+          dueId: String(dues[0]._id),
+          userId: String(req.user._id),
+          title: dues[0].title,
+          amount: dues[0].amount,
+          dueDate: new Date(dues[0].dueDate).toDateString(),
+        });
+      } else {
+        dispatchResult = await twilioService.makeGroupVoiceCall(targetPhone, req.user._id, dues);
+      }
+    } else if (channel === 'whatsapp') {
+      const dueSummary = dues.map(d => `• "${d.title}" — ₹${d.amount} (Due ${new Date(d.dueDate).toDateString()})`).join('\n');
+      const text = `🚨 *Payment Follow-Up for ${customer.name}*\n\nYou have ${dues.length} outstanding due(s):\n${dueSummary}\n\nPlease settle to avoid penalties. Reply PAID or SNOOZE <days>.`;
+      dispatchResult = await twilioService.sendWhatsApp(targetPhone, text);
+    }
+
     res.status(200).json({
-      message: `Follow-up triggered for ${customer.name} via ${channel}`,
+      message: `Voice call dispatched to ${customer.name} (${targetPhone})`,
       customerId: customer._id,
       channel,
-      note: 'Multi-channel dispatcher will be wired in Phase 3',
+      callSid: dispatchResult?.sid || null,
+      duesCount: dues.length,
     });
   } catch (error) {
     console.error('triggerFollowup error:', error.message);
-    res.status(500).json({ message: 'Error triggering follow-up', error: error.message });
+    res.status(500).json({ message: `Failed to dispatch call: ${error.message}` });
   }
 };
 
 // ── POST /api/customers/trigger-followup-all ─────────────────────────────────
 /**
- * Bulk: trigger AI follow-up for all active customers with outstanding dues.
- * Phase 3 will wire the actual channel dispatcher.
+ * Bulk: trigger actual AI voice calls for all active customers with outstanding dues.
  */
 exports.triggerFollowupAll = async (req, res) => {
   try {
@@ -366,26 +401,59 @@ exports.triggerFollowupAll = async (req, res) => {
       followUpEnabled: true,
     }).lean();
 
-    // Find customers who have at least one unpaid due
     const customerIds = eligibleCustomers.map((c) => c._id);
-    const duesWithOwing = await Dues.distinct('customerId', {
+    const outstandingDues = await Dues.find({
       userId: new mongoose.Types.ObjectId(userId),
       customerId: { $in: customerIds },
       status: { $in: ['UNPAID', 'OVERDUE', 'PTP'] },
-    });
+    }).lean();
 
-    const owingSet = new Set(duesWithOwing.map(String));
-    const toFollowUp = eligibleCustomers.filter((c) => owingSet.has(String(c._id)));
+    // Group dues by customerId
+    const duesByCustomer = {};
+    for (const due of outstandingDues) {
+      const cid = String(due.customerId);
+      if (!duesByCustomer[cid]) duesByCustomer[cid] = [];
+      duesByCustomer[cid].push(due);
+    }
 
-    // ── Phase 3 will dispatch actual calls/messages here ──
+    const twilioService = require('../Service/twilio.service');
+    let dispatchedCount = 0;
+    const errors = [];
+
+    for (const customer of eligibleCustomers) {
+      const dues = duesByCustomer[String(customer._id)] || [];
+      if (dues.length === 0) continue;
+
+      const targetPhone = customer.contactNo || req.user.phone;
+      if (!targetPhone) continue;
+
+      try {
+        if (channel === 'voiceCall') {
+          if (dues.length === 1) {
+            await twilioService.makeVoiceCall(targetPhone, {
+              dueId: String(dues[0]._id),
+              userId: String(userId),
+              title: dues[0].title,
+              amount: dues[0].amount,
+              dueDate: new Date(dues[0].dueDate).toDateString(),
+            });
+          } else {
+            await twilioService.makeGroupVoiceCall(targetPhone, userId, dues);
+          }
+        }
+        dispatchedCount++;
+      } catch (callErr) {
+        errors.push(`${customer.name}: ${callErr.message}`);
+      }
+    }
+
     res.status(200).json({
-      message: `Bulk follow-up triggered for ${toFollowUp.length} customer(s) via ${channel}`,
-      count: toFollowUp.length,
-      customers: toFollowUp.map((c) => ({ id: c._id, name: c.name })),
-      note: 'Multi-channel dispatcher will be wired in Phase 3',
+      message: `Bulk follow-up voice calls dispatched to ${dispatchedCount} customer(s)`,
+      count: dispatchedCount,
+      errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
     console.error('triggerFollowupAll error:', error.message);
-    res.status(500).json({ message: 'Error triggering bulk follow-up', error: error.message });
+    res.status(500).json({ message: `Bulk follow-up failed: ${error.message}` });
   }
 };
