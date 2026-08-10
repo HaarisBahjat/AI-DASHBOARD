@@ -1212,11 +1212,38 @@ function VoiceChat({ onLogout, profile }) {
   }, [notifOpen]);
 
   // ── Send text message via socket (transcript-only path) ───────────────────
-  const sendTextMessage = useCallback(() => {
+  const sendTextMessage = useCallback(async () => {
     const trimmed = textInput.trim();
     if (!trimmed) return;
-    if (!socket || !activeConversationId) {
-      alert('Please select a bill chat first.');
+    if (!socket) {
+      alert('Socket connection disconnected. Please refresh.');
+      return;
+    }
+
+    let targetId = activeConversationId;
+    const authToken = localStorage.getItem('authToken');
+
+    // Auto-create global session if no thread is currently selected
+    if (!targetId) {
+      try {
+        const resp = await fetch(apiUrl('/api/conversations'), {
+          method: 'POST',
+          headers: getAuthHeaders(authToken),
+          body: JSON.stringify({ dueTitle: 'AI Business Copilot', channel: 'TEXT' })
+        });
+        const data = await safeJsonParse(resp);
+        if (data?.conversationId) {
+          targetId = data.conversationId;
+          setSelectedThreadKey(`session:${targetId}`);
+          await refreshConversations(authToken);
+        }
+      } catch (err) {
+        console.error('Auto session error:', err.message);
+      }
+    }
+
+    if (!targetId) {
+      alert('Could not start chat session. Please select a thread from the left.');
       return;
     }
 
@@ -1228,7 +1255,7 @@ function VoiceChat({ onLogout, profile }) {
     };
 
     setConversations((prev) => prev.map((conv) => {
-      if (conv.id !== activeConversationId) return conv;
+      if (conv.id !== targetId) return conv;
       return {
         ...conv,
         messages: [...conv.messages, userMessage],
@@ -1240,7 +1267,7 @@ function VoiceChat({ onLogout, profile }) {
     setIsLoading(true);
 
     socket.emit('voice-message', {
-      conversationId: activeConversationId,
+      conversationId: targetId,
       userId: localStorage.getItem('userId'),
       audioBuffer: [],
       transcript: trimmed,
