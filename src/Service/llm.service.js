@@ -30,9 +30,15 @@ Important: Always return intent in LOWERCASE. Valid intents are ONLY:
 - list_dues
 - sum_dues
 - top_upcoming
+- get_customer_info
+- list_customers
+- call_customer
 - financial_advice
 - general_chat
 
+If the user asks about a specific customer (e.g. "Who is Rajesh Traders?", "Tell me about Rajesh Traders", "Show info for Sharma Electronics") → use "get_customer_info" and extract customerName.
+If the user asks to list all customers (e.g. "Show my customers", "List customers") → use "list_customers".
+If the user asks to call or follow up with a customer (e.g. "Call Rajesh Traders", "Trigger follow up for Sharma Electronics") → use "call_customer" and extract customerName.
 If the user asks for the total sum, balance, or how much they owe in total → use "sum_dues".
 If the user asks for top upcoming, urgent, or next N bills → use "top_upcoming" and extract topK (default 3).
 If the user asks for financial suggestions, budgeting tips, which bill to prioritize paying, or advice → use "financial_advice".
@@ -41,6 +47,7 @@ Return ONLY valid JSON in this format (all intent values must be lowercase):
 
 {
   "intent": "create_due",
+  "customerName": "",
   "title": "",
   "description": "",
   "amount": null,
