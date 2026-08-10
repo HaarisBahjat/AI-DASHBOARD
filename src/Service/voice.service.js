@@ -408,7 +408,7 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer, userId, fallb
 };
 
 async function finalizeReply(session, replytext) {
-    await conversationMessage.create({
+    await Conversation.create({
         conversationId: session._id,
         roles: "SYSTEM",
         message: replytext
