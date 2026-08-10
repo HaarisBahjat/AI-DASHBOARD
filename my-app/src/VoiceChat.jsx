@@ -368,14 +368,29 @@ function VoiceChat({ onLogout, profile }) {
     setConversations(withDetails);
   };
 
+  const safeJsonParse = async (res) => {
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return await res.json();
+    }
+    const text = await res.text();
+    if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
+      throw new Error(`Server endpoint not found (${res.status}). Ensure the backend server is running.`);
+    }
+    throw new Error(text.slice(0, 150) || `Server error (${res.status})`);
+  };
+
   const refreshCustomers = async (tokenOverride) => {
     const token = tokenOverride || localStorage.getItem('authToken');
     if (!token) return;
     setIsCustomersLoading(true);
     try {
       const res = await fetch(apiUrl('/api/customers'), { headers: getAuthHeaders(token) });
-      if (!res.ok) throw new Error(`Failed to fetch customers (${res.status})`);
-      const data = await res.json();
+      if (!res.ok) {
+        const data = await safeJsonParse(res).catch(e => ({ message: e.message }));
+        throw new Error(data.message || `Failed to fetch customers (${res.status})`);
+      }
+      const data = await safeJsonParse(res);
       setCustomers(Array.isArray(data?.customers) ? data.customers : []);
     } catch (err) {
       console.error('Failed to load customers:', err.message);
@@ -391,8 +406,8 @@ function VoiceChat({ onLogout, profile }) {
     setCustomerActivity(null);
     try {
       const res = await fetch(apiUrl(`/api/customers/${customerId}/activity`), { headers: getAuthHeaders(token) });
-      if (!res.ok) throw new Error(`Failed to load activity (${res.status})`);
-      const data = await res.json();
+      const data = await safeJsonParse(res);
+      if (!res.ok) throw new Error(data.message || `Failed to load activity (${res.status})`);
       setCustomerActivity(data);
     } catch (err) {
       console.error('loadCustomerActivity error:', err.message);
@@ -424,7 +439,7 @@ function VoiceChat({ onLogout, profile }) {
         headers: getAuthHeaders(token),
         body: JSON.stringify(newCustomerForm),
       });
-      const data = await res.json();
+      const data = await safeJsonParse(res);
       if (!res.ok) throw new Error(data.message || 'Failed to create customer');
       setShowAddCustomerModal(false);
       setNewCustomerForm({ name: '', contactNo: '', email: '', place: '', notes: '' });
