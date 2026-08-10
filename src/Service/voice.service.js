@@ -106,11 +106,22 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer, userId, fallb
     return finalizeReply(currentSession, replytext);
     }
     
-    // Check if a customer name was specified and match customerId
+    // Check if a customer name was specified and match or auto-create customerId
     let linkedCustomerId = null;
-    if (mergedData.customerName) {
-      const matchCust = await Customer.findOne({ userId, name: new RegExp(mergedData.customerName.trim(), 'i') });
-      if (matchCust) linkedCustomerId = matchCust._id;
+    let customerNameLabel = "";
+    if (mergedData.customerName && mergedData.customerName.trim()) {
+      const custName = mergedData.customerName.trim();
+      let matchCust = await Customer.findOne({ userId, name: new RegExp(custName, 'i') });
+      if (!matchCust) {
+        matchCust = await Customer.create({
+          userId,
+          name: custName,
+          status: 'Active',
+          followUpEnabled: true
+        });
+      }
+      linkedCustomerId = matchCust._id;
+      customerNameLabel = ` for customer **${matchCust.name}**`;
     }
 
     const newDue= await Due.create({

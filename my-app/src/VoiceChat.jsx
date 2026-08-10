@@ -906,6 +906,13 @@ function VoiceChat({ onLogout, profile }) {
     newSocket.on('voice-reply', (result) => {
       setIsLoading(false);
 
+      // Auto-refresh customers and dues so auto-created contacts show in UI immediately
+      const tok = localStorage.getItem('authToken');
+      if (tok) {
+        refreshCustomers(tok).catch(() => {});
+        refreshDues(tok).catch(() => {});
+      }
+
       const assistantMessage = {
         id: Date.now() + Math.random(),
         role: 'ASSISTANT',
