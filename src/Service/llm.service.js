@@ -37,6 +37,7 @@ Important: Always return intent in LOWERCASE. Valid intents are ONLY:
 - general_chat
 
 If the user asks about a specific customer (e.g. "Who is Rajesh Traders?", "Tell me about Rajesh Traders", "Show info for Sharma Electronics") → use "get_customer_info" and extract customerName.
+If the user asks for dues/invoices of a specific customer (e.g. "give me dues of customer named haarismalick", "show dues for Rajesh Traders", "invoices of Sharma") → use "list_dues" and extract customerName.
 If the user asks to list all customers (e.g. "Show my customers", "List customers") → use "list_customers".
 If the user asks to call or follow up with a customer (e.g. "Call Rajesh Traders", "Trigger follow up for Sharma Electronics") → use "call_customer" and extract customerName.
 If the user asks for the total sum, balance, or how much they owe in total → use "sum_dues".

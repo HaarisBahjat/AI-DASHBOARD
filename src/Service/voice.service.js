@@ -357,14 +357,36 @@ exports.processVoiceMessage = async ({conversationId, audioBuffer, userId, fallb
 
     // LIST DUES INTENT LOGIC
     if (normalizedIntent === "list_dues") {
-      const dues = await Due.find({ userId });
+      let filter = { userId };
+      let customerTitle = "";
+
+      // Check if user specified a specific customer name
+      if (intentData.customerName && intentData.customerName.trim()) {
+        const custName = intentData.customerName.trim();
+        const matchedCust = await Customer.findOne({ userId, name: new RegExp(custName, 'i') });
+        if (matchedCust) {
+          filter.customerId = matchedCust._id;
+          customerTitle = ` for customer **${matchedCust.name}**`;
+        } else {
+          // Fallback: search title or notes
+          filter.$or = [
+            { title: new RegExp(custName, 'i') },
+            { category: new RegExp(custName, 'i') }
+          ];
+          customerTitle = ` matching "${custName}"`;
+        }
+      }
+
+      const dues = await Due.find(filter).sort({ dueDate: 1 });
       if (dues.length === 0) {
-        replytext = "You have no dues at the moment.";
+        replytext = `No dues found${customerTitle}.`;
         return finalizeReply(currentSession, replytext);
       }
+
       const total = dues.reduce((sum, due) => sum + (Number(due.amount) || 0), 0);
-      const dueList = dues.slice(0, 5).map(due => `${due.title}: ₹${due.amount} due on ${new Date(due.dueDate).toLocaleDateString()}`).join(". ");
-      replytext = `You have ${dues.length} dues totaling ₹${total.toFixed(2)}. Here are your recent ones: ${dueList}.`;
+      const dueList = dues.slice(0, 5).map((due, idx) => `${idx + 1}. ${due.title}: ₹${due.amount} (Due ${new Date(due.dueDate).toLocaleDateString()}) [${due.status}]`).join("\n");
+      
+      replytext = `Found ${dues.length} due(s)${customerTitle} totaling ₹${total.toFixed(2)}:\n\n${dueList}`;
       return finalizeReply(currentSession, replytext);
     }
 
