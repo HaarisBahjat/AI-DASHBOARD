@@ -14,7 +14,7 @@ const pendingApprovals = new Map();
 exports.interactHandler = async (req, res) => {
   try {
     const { message, conversationId } = req.body;
-    const userId = req.user.userId;
+    const userId = req.user._id;
     if (!message || !message.trim()) return res.status(400).json({ error: 'message is required' });
 
     const threadId = conversationId || ('user-' + userId + '-' + Date.now());
@@ -42,7 +42,7 @@ exports.interactHandler = async (req, res) => {
 // GET /api/agent/pending-approvals
 exports.listPendingApprovalsHandler = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user._id;
     res.json({ pendingApprovals: Array.from(pendingApprovals.values()).filter(a => a.userId === userId) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };
@@ -52,7 +52,7 @@ exports.resolveApprovalHandler = async (req, res) => {
   try {
     const { threadId } = req.params;
     const { approved, reason } = req.body;
-    const userId = req.user.userId;
+    const userId = req.user._id;
     const pending = pendingApprovals.get(threadId);
     if (!pending || pending.userId !== userId) return res.status(404).json({ error: 'Pending approval not found' });
 
