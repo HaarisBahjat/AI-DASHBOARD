@@ -20,37 +20,90 @@ async function negotiatorNode(state) {
   const { intentData, customer, due, policyLimits, userId, userText } = state;
   const intent = intentData ? intentData.intent : 'general_chat';
 
+  // ── LIST DUES ──────────────────────────────────────────────────────────────
   if (intent === 'list_dues') {
     const filter = { userId };
     let label = '';
-    if (customer) { filter.customerId = customer._id; label = ' for ' + customer.name; }
+
+    if (customer) {
+      label = ' for customer ' + customer.name;
+      const safeName = customer.name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+      filter.$or = [
+        { customerId: customer._id },
+        { title: { $regex: safeName, $options: 'i' } }
+      ];
+    } else if (intentData && intentData.customerName && intentData.customerName.trim()) {
+      const name = intentData.customerName.trim();
+      const safeName = name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+      label = ' matching "' + name + '"';
+      filter.$or = [
+        { title: { $regex: safeName, $options: 'i' } },
+        { category: { $regex: safeName, $options: 'i' } }
+      ];
+    }
+
     const dues = await Dues.find(filter).sort({ dueDate: 1 }).lean();
-    if (!dues.length) return { replyText: 'No dues found' + label + '.', negotiationOutcome: 'GENERAL_REPLY', nextStep: 'dispatch' };
+    if (!dues.length) {
+      return { replyText: 'No dues found' + label + '.', negotiationOutcome: 'GENERAL_REPLY', nextStep: 'dispatch' };
+    }
     const total = dues.reduce((s, d) => s + (d.amount || 0), 0);
-    const lines = dues.slice(0, 5).map((d, i) => (i+1) + '. ' + d.title + ': Rs.' + d.amount + ' (' + new Date(d.dueDate).toLocaleDateString() + ') [' + d.status + ']').join('; ');
-    return { replyText: 'Found ' + dues.length + ' due(s)' + label + ' totalling Rs.' + total.toFixed(2) + ': ' + lines, negotiationOutcome: 'GENERAL_REPLY', nextStep: 'dispatch' };
+    const lines = dues.slice(0, 5).map((d, i) =>
+      (i + 1) + '. ' + d.title + ': Rs.' + d.amount + ' (Due ' + new Date(d.dueDate).toLocaleDateString() + ') [' + d.status + ']'
+    ).join('; ');
+    return {
+      replyText: 'Found ' + dues.length + ' due(s)' + label + ' totalling Rs.' + total.toFixed(2) + ': ' + lines,
+      negotiationOutcome: 'GENERAL_REPLY',
+      nextStep: 'dispatch',
+    };
   }
 
+  // ── SUM DUES ───────────────────────────────────────────────────────────────
   if (intent === 'sum_dues') {
     const dues = await Dues.find({ userId, status: { $in: ['UNPAID', 'OVERDUE'] } }).lean();
     const total = dues.reduce((s, d) => s + (d.amount || 0), 0);
-    return { replyText: 'You have Rs.' + total.toFixed(2) + ' outstanding across ' + dues.length + ' unpaid dues.', negotiationOutcome: 'GENERAL_REPLY', nextStep: 'dispatch' };
+    return {
+      replyText: 'You have Rs.' + total.toFixed(2) + ' outstanding across ' + dues.length + ' unpaid dues.',
+      negotiationOutcome: 'GENERAL_REPLY',
+      nextStep: 'dispatch',
+    };
   }
 
+  // ── TOP UPCOMING ───────────────────────────────────────────────────────────
   if (intent === 'top_upcoming') {
-    const k = (intentData.topK && intentData.topK > 0) ? intentData.topK : 3;
+    const k = (intentData && intentData.topK && intentData.topK > 0) ? intentData.topK : 3;
     const dues = await Dues.find({ userId }).sort({ dueDate: 1 }).limit(k).lean();
-    const lines = dues.map((d, i) => (i+1) + '. ' + d.title + ': Rs.' + d.amount + ' due ' + new Date(d.dueDate).toDateString()).join('; ');
-    return { replyText: 'Your top ' + dues.length + ' upcoming dues: ' + lines, negotiationOutcome: 'GENERAL_REPLY', nextStep: 'dispatch' };
+    const lines = dues.map((d, i) => (i + 1) + '. ' + d.title + ': Rs.' + d.amount + ' due ' + new Date(d.dueDate).toDateString()).join('; ');
+    return {
+      replyText: 'Your top ' + dues.length + ' upcoming dues: ' + lines,
+      negotiationOutcome: 'GENERAL_REPLY',
+      nextStep: 'dispatch',
+    };
   }
 
+  // ── GET CUSTOMER INFO ─────────────────────────────────────────────────────
   if (intent === 'get_customer_info') {
-    if (!customer) return { replyText: 'No customer named "' + (intentData.customerName || 'that') + '" found in your contacts.', negotiationOutcome: 'GENERAL_REPLY', nextStep: 'dispatch' };
-    const pending = await Dues.find({ userId, customerId: customer._id, status: { $in: ['UNPAID', 'OVERDUE'] } }).lean();
+    if (!customer) {
+      const name = (intentData && intentData.customerName) || 'that customer';
+      return {
+        replyText: 'No customer named "' + name + '" found in your contacts.',
+        negotiationOutcome: 'GENERAL_REPLY',
+        nextStep: 'dispatch',
+      };
+    }
+    const safeName = customer.name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+    const pending = await Dues.find({
+      userId,
+      status: { $in: ['UNPAID', 'OVERDUE'] },
+      $or: [
+        { customerId: customer._id },
+        { title: { $regex: safeName, $options: 'i' } }
+      ]
+    }).lean();
     const total = pending.reduce((s, d) => s + (d.amount || 0), 0);
     return {
-      replyText: customer.name + ': phone=' + (customer.phone || 'N/A') + ', email=' + (customer.email || 'N/A') + ', status=' + (customer.status || 'Active') + '. Outstanding: Rs.' + total + ' across ' + pending.length + ' invoices.',
-      negotiationOutcome: 'GENERAL_REPLY', nextStep: 'dispatch',
+      replyText: customer.name + ': phone=' + (customer.phone || 'N/A') + ', email=' + (customer.email || 'N/A') + ', status=' + (customer.status || 'Active') + '. Outstanding: Rs.' + total.toFixed(2) + ' across ' + pending.length + ' invoices.',
+      negotiationOutcome: 'GENERAL_REPLY',
+      nextStep: 'dispatch',
     };
   }
 

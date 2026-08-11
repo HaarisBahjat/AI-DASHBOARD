@@ -36,12 +36,22 @@ async function humanApprovalNode(state) {
   };
 }
 
-// Conditional router: reads state.nextStep to decide which node comes next
-function routeByNextStep(state) {
+// Router after entityResolver:
+// If entityResolver created a due, or produced an early reply (missing fields / error),
+// route directly to actionDispatcher.
+// Otherwise, route to riskProfiler -> negotiator!
+function routeAfterEntityResolver(state) {
   if (state.negotiationOutcome === 'DUE_CREATED') return 'dispatch';
-  // If entityResolver already put a reply (missing fields, errors), go to dispatch
-  if (state.replyText && (!state.intentData || !state.intentData.intent)) return 'dispatch';
-  return state.nextStep || 'dispatch';
+  if (state.replyText && state.replyText.length > 0) return 'dispatch';
+  return 'riskProfiler';
+}
+
+// Router after negotiator:
+// Reads state.nextStep set by negotiatorNode ("needs_compliance" | "needs_approval" | "dispatch")
+function routeAfterNegotiator(state) {
+  if (state.nextStep === 'needs_compliance') return 'needs_compliance';
+  if (state.nextStep === 'needs_approval') return 'needs_approval';
+  return 'dispatch';
 }
 
 // ── ASSEMBLE ─────────────────────────────────────────────────────────────────
@@ -57,19 +67,17 @@ workflow.addNode('actionDispatcher', actionDispatcherNode);
 // Entry point
 workflow.addEdge(START, 'entityResolver');
 
-// After entityResolver: DUE_CREATED shortcuts to dispatch; others go to riskProfiler
-workflow.addConditionalEdges('entityResolver', routeByNextStep, {
-  dispatch:          'actionDispatcher',
-  needs_compliance:  'complianceGuard',
-  needs_approval:    'humanApproval',
-  default:           'riskProfiler',
+// After entityResolver: DUE_CREATED / early reply -> dispatch; others -> riskProfiler
+workflow.addConditionalEdges('entityResolver', routeAfterEntityResolver, {
+  dispatch:     'actionDispatcher',
+  riskProfiler: 'riskProfiler',
 });
 
 // riskProfiler → negotiator (always; only computes policy limits)
 workflow.addEdge('riskProfiler', 'negotiator');
 
 // After negotiator: route by what it decided
-workflow.addConditionalEdges('negotiator', routeByNextStep, {
+workflow.addConditionalEdges('negotiator', routeAfterNegotiator, {
   dispatch:          'actionDispatcher',
   needs_compliance:  'complianceGuard',
   needs_approval:    'humanApproval',
