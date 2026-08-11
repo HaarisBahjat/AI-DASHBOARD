@@ -1358,6 +1358,14 @@ function VoiceChat({ onLogout, profile }) {
         body: JSON.stringify({ channel: 'TEXT' })
       });
 
+      if (response.status === 401) {
+        alert('Your session has expired. Please sign in again.');
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userId');
+        navigate('/login', { replace: true });
+        return;
+      }
+
       if (!response.ok) {
         const errorData = await response.json();
         alert(`Error: ${errorData.error || 'Failed to create conversation'}`);
