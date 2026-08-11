@@ -56,8 +56,8 @@ exports.login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid email or password' });
         }
 
-        // Generate JWT token (default 7d for active session duration)
-        const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+        // Generate JWT token (default 15 minutes for access tokens)
+        const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
         const token = jwt.sign({ userId: user._id, role: user.role }, SECRET_KEY, { expiresIn: JWT_EXPIRES_IN });
         //Generate refresh token
         const refreshToken = jwt.sign({ userId: user._id, tokenType: 'refresh' }, JWT_REFRESH_SECRET_KEY, { expiresIn: '7d' });
