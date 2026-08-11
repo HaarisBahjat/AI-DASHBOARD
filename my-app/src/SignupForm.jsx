@@ -27,18 +27,29 @@ const SignupForm = () => {
         body: JSON.stringify({ username, email, password }),
       });
 
+      // Safe JSON parse — detect Hugging Face rebuild HTML page
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Server is starting up. Please wait 30 seconds and try again.');
+      }
       const data = await response.json();
+
       if (response.ok) {
         alert('Account created successfully. Please sign in.');
         navigate('/login', { replace: true });
       } else {
-        alert(`Signup failed: ${data.message}`);
+        alert(`Signup failed: ${data.message || data.error || 'Unknown error'}`);
       }
     } catch (error) {
-      alert(`Network error: ${error.message}`);
+      if (error.message.includes('Unexpected token') || error.message.includes('not valid JSON')) {
+        alert('Server is starting up after a recent update. Please wait 30 seconds and try again.');
+      } else {
+        alert(`Network error: ${error.message}`);
+      }
     } finally {
       setIsLoading(false);
     }
+
   };
 
   return (

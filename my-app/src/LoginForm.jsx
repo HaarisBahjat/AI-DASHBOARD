@@ -18,16 +18,29 @@ const LoginForm = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      const data = await response.json();
+
+      // Safe JSON parse — Hugging Face returns an HTML page while the
+      // container is rebuilding. Detect this and show a friendly message.
+      let data;
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Server is starting up. Please wait 30 seconds and try again.');
+      }
+      data = await response.json();
+
       if (response.ok) {
         localStorage.setItem('authToken', data.token);
         localStorage.setItem('userId', data.user._id);
         navigate('/dashboard', { replace: true });
       } else {
-        alert(`Login failed: ${data.message}`);
+        alert(`Login failed: ${data.message || data.error || 'Unknown error'}`);
       }
     } catch (error) {
-      alert(`Network error: ${error.message}`);
+      if (error.message.includes('Unexpected token') || error.message.includes('not valid JSON')) {
+        alert('Server is starting up after a recent update. Please wait 30 seconds and try again.');
+      } else {
+        alert(`Network error: ${error.message}`);
+      }
     } finally {
       setIsLoading(false);
     }
