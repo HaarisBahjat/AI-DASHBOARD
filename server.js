@@ -117,7 +117,11 @@ app.use('/api/conversations', require('./src/routes/conversation.routes'));
 app.use('/api/customers', require('./src/routes/customers.route'));
 // Twilio: outbound voice TwiML + inbound SMS/WhatsApp webhook
 app.use('/api/twilio', require('./src/routes/twilio.route'));
+// LangGraph Multi-Agent System (Phase 2)
+// Handles: /api/agent/interact, /api/agent/pending-approvals, /api/agent/approvals/:threadId/resolve
+app.use('/api/agent', require('./src/routes/agent.routes'));
 app.use("/audio", express.static("src/audio"));
+
 
 
 
