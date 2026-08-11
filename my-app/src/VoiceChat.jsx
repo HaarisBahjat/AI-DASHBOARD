@@ -41,7 +41,7 @@ const getMonthKey = (dateValue) => {
 };
 
 const NAV_ITEMS = [
-  { key: 'conversations', label: 'Conversations', icon: 'dashboard' },
+  { key: 'conversations', label: 'AI Copilot', icon: 'auto_awesome' },
   { key: 'contacts', label: 'Contacts', icon: 'people' },
   { key: 'intellige', label: 'Intellige', icon: 'auto_awesome', soon: true },
   { key: 'finance', label: 'Finance', icon: 'account_balance_wallet' },
@@ -88,7 +88,7 @@ const getThreadKey = (conversation) => {
 };
 
 const getBillLabel = (conversation) => {
-  const title = conversation?.dueTitle || 'Untitled Bill';
+  const title = conversation?.dueTitle || 'Smart AI Chat';
   const dueDate = conversation?.dueDate ? new Date(conversation.dueDate).toLocaleDateString() : null;
   return dueDate ? `${title} (${dueDate})` : title;
 };
@@ -1343,26 +1343,12 @@ function VoiceChat({ onLogout, profile }) {
     }
 
     try {
-      const dueTitle = await captureSingleUtterance('Say the bill title now.');
-
-      let response = await fetch(apiUrl('/api/conversations'), {
+      // Directly create a fresh conversation session for smart chat
+      const response = await fetch(apiUrl('/api/conversations'), {
         method: 'POST',
         headers: getAuthHeaders(authToken),
-        body: JSON.stringify({ dueTitle, channel: 'VOICE' })
+        body: JSON.stringify({ channel: 'TEXT' })
       });
-
-      if (response.status === 409) {
-        // Duplicate bill titles require voice due-date disambiguation.
-        const duplicateData = await response.json();
-        if (duplicateData?.requiresDueDate) {
-          const spokenDueDate = await captureSingleUtterance('Multiple bills found. Say the due date.');
-          response = await fetch(apiUrl('/api/conversations'), {
-            method: 'POST',
-            headers: getAuthHeaders(authToken),
-            body: JSON.stringify({ dueTitle, dueDate: spokenDueDate, channel: 'VOICE' })
-          });
-        }
-      }
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -1372,13 +1358,9 @@ function VoiceChat({ onLogout, profile }) {
 
       const data = await response.json();
       await refreshConversations(authToken);
-      // Auto-focus the thread we just created/reused.
+      // Auto-focus the new conversation thread box immediately
       setSelectedThreadKey(data?.dueId ? `due:${data.dueId}` : `session:${data.conversationId}`);
 
-      if (data.audioFile) {
-        audioRef.current.src = apiUrl(data.audioFile);
-        audioRef.current.play();
-      }
     } catch (error) {
       alert(`Network Error: ${error.message}`);
     }
@@ -2599,13 +2581,13 @@ function VoiceChat({ onLogout, profile }) {
           <div className="conversation-dashboard">
             <div className="conversation-list-panel glass-panel rounded-xl">
               <div className="conversation-list-header">
-                <h1>Conversations</h1>
-                <p>Review and manage your AI voice interactions.</p>
+                <h1>AI Copilot</h1>
+                <p>Interactive multi-agent financial assistant & conversations.</p>
               </div>
 
               <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
                 <button className="new-conversation-btn" style={{ flex: 1, marginBottom: 0 }} onClick={createConversation} disabled={!isConnected}>
-                  + Add dues
+                  + New Conversation
                 </button>
                 <button 
                   className="new-conversation-btn" 

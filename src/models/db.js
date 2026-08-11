@@ -162,7 +162,8 @@ const conversationSessionSchema = new mongoose.Schema({
   dueId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Dues",
-    required: true
+    required: false,
+    default: null
   },
   sessionDate: {
     type: String,

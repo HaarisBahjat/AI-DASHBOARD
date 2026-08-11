@@ -138,31 +138,46 @@ exports.createConversation=async(req,res)=>{
             }
         }
 
-        if(!targetDueId){
-            const fallbackDue = await Due.findOne({
+        // If neither dueId nor dueTitle is provided, create a general AI conversation session
+        if (!targetDueId && !dueTitle) {
+            const session = await conversationSession.create({
                 userId: req.user._id,
-                status: { $in: ['UNPAID', 'OVERDUE'] }
-            }).sort({ dueDate: 1 });
+                dueId: null,
+                sessionDate: getLocalDateKey(),
+                channel,
+                status: "IN_PROGRESS",
+                clarificationState: "NONE"
+            });
 
-            if (!fallbackDue) {
-                return res.status(400).json({error:"dueId is required (no unpaid dues available for fallback)"});
-            }
+            await conversationMessage.create({
+                conversationId: session._id,
+                roles: "ASSISTANT",
+                message: "Hello! I am your AI Financial Copilot. How can I help you today? You can ask me to list dues, check customer contacts, create invoices, or analyze your expenses."
+            });
 
-            targetDueId = fallbackDue._id;
+            return res.status(201).json({
+                conversationId: session._id,
+                dueId: null,
+                dueTitle: "Smart AI Chat",
+                status: session.status,
+                createdAt: session.createdAt
+            });
         }
 
-        // Validate dueId format
-        if (!isValidObjectId(targetDueId)) {
+        // Validate dueId format if provided
+        if (targetDueId && !isValidObjectId(targetDueId)) {
             return res.status(400).json({error:"Invalid dueId format"});
         }
 
-        const due = await Due.findById(targetDueId);
-        if(!due){
-            return res.status(404).json({error:"Due not found"});
-        }
-        
-        if(due.userId.toString() !== req.user._id.toString()){
-            return res.status(403).json({error:"Access denied"});
+        let due = null;
+        if (targetDueId) {
+            due = await Due.findById(targetDueId);
+            if (!due) {
+                return res.status(404).json({error:"Due not found"});
+            }
+            if (due.userId.toString() !== req.user._id.toString()) {
+                return res.status(403).json({error:"Access denied"});
+            }
         }
 
         // Reuse active same-day session for the same bill; create a fresh one after day rollover.
@@ -170,7 +185,7 @@ exports.createConversation=async(req,res)=>{
         const existingTodaySession = await conversationSession
             .findOne({
                 userId: req.user._id,
-                dueId: targetDueId,
+                dueId: targetDueId || null,
                 sessionDate: todayKey,
                 status: { $ne: 'COMPLETED' }
             })
