@@ -42,7 +42,7 @@ When creating a due (intent: "create_due"):
 - Do NOT mix up title and customerName.
 
 If the user asks about a specific customer (e.g. "Who is Rajesh Traders?", "Tell me about Rajesh Traders", "Show info for Sharma Electronics") → use "get_customer_info" and extract customerName.
-If the user asks for dues/invoices of a specific customer (e.g. "give me dues of customer named haarismalick", "show dues for Rajesh Traders", "invoices of Sharma") → use "list_dues" and extract customerName.
+If the user asks for dues/invoices, asks if a due/bill is still there, or checks bill status (e.g. "is the due still there", "is the bill pending", "give me dues of customer named haarismalick", "show dues for Rajesh Traders", "invoices of Sharma") → use "list_dues".
 If the user asks to list all customers (e.g. "Show my customers", "List customers") → use "list_customers".
 If the user asks to call or follow up with a customer (e.g. "Call Rajesh Traders", "Trigger follow up for Sharma Electronics") → use "call_customer" and extract customerName.
 If the user asks for the total sum, balance, or how much they owe in total → use "sum_dues".
@@ -282,7 +282,8 @@ Your Task:
 1. Provide helpful, smart financial analysis or advice based on their actual dues (e.g. prioritizing overdue bills, cash flow tips, setting up reminders, or summarizing expenses by category).
 2. If they ask a general question, answer it warmly and intelligently while referencing their financial situation if relevant.
 3. Keep your response CONCISE (under 60 words) and formatted for natural spoken voice audio (no markdown, no bullet points, no asterisks).
-4. CRITICAL: You MUST ALWAYS respond in clear, professional English regardless of what language the user prompt appears to be in.
+4. CRITICAL ANTI-HALLUCINATION RULE: NEVER invent, generate, or hallucinate any fake bills, receipts, dates, company names, or dollar amounts (e.g. NEVER mention fake "Company Name Receipt" or $1913.68). Only reference the EXACT dues listed in the Current Dues section above. If Current Dues is empty, state clearly that there are no active dues recorded.
+5. CRITICAL: You MUST ALWAYS respond in clear, professional English regardless of what language the user prompt appears to be in.
 `;
 
   try {
