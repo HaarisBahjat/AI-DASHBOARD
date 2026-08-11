@@ -82,15 +82,18 @@ const getDateLabel = (dateKey) => {
 };
 
 const getThreadKey = (conversation) => {
-  // Keep bill threads unique by dueId so same titles do not merge incorrectly.
+  // Keep bill threads unique by dueId; general sessions use their unique conversationId.
   if (conversation?.dueId) return `due:${conversation.dueId}`;
-  return `session:${conversation.id}`;
+  return `session:${conversation.id || conversation.conversationId || conversation._id}`;
 };
 
 const getBillLabel = (conversation) => {
-  const title = conversation?.dueTitle || 'Smart AI Chat';
-  const dueDate = conversation?.dueDate ? new Date(conversation.dueDate).toLocaleDateString() : null;
-  return dueDate ? `${title} (${dueDate})` : title;
+  if (conversation?.dueTitle && conversation?.dueTitle !== 'Untitled Bill' && conversation?.dueTitle !== 'Smart AI Chat') {
+    const title = conversation.dueTitle;
+    const dueDate = conversation?.dueDate ? new Date(conversation.dueDate).toLocaleDateString() : null;
+    return dueDate ? `${title} (${dueDate})` : title;
+  }
+  return 'New Conversation';
 };
 
 const buildBillThreads = (conversationList = []) => {
@@ -154,15 +157,20 @@ const buildBillThreads = (conversationList = []) => {
       ? thread.messages[thread.messages.length - 1].message
       : 'No messages yet';
 
+    // ── Gemini / ChatGPT-style dynamic chat naming ──
+    // If the conversation is general (no specific bill linked), title it "New Conversation".
+    // As soon as the user sends a message, dynamically title it after their first prompt!
+    const firstUserMsg = thread.messages.find((m) => (m.role || m.roles || '').toUpperCase() === 'USER')?.message;
+    if (firstUserMsg && firstUserMsg.trim() && !thread.dueId) {
+      const cleanPrompt = firstUserMsg.trim();
+      thread.billLabel = cleanPrompt.length > 30 ? cleanPrompt.substring(0, 30) + '...' : cleanPrompt;
+    }
+
     return thread;
   });
 
-  // Requested order: bill name first, recent activity as tiebreaker.
-  threads.sort((a, b) => {
-    const nameCmp = a.dueTitle.localeCompare(b.dueTitle);
-    if (nameCmp !== 0) return nameCmp;
-    return new Date(b.lastActivityAt) - new Date(a.lastActivityAt);
-  });
+  // Sort threads by most recent activity date (Gemini & ChatGPT sidebar order)
+  threads.sort((a, b) => new Date(b.lastActivityAt) - new Date(a.lastActivityAt));
 
   return threads;
 };
