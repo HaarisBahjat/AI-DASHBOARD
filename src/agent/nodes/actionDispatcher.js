@@ -53,9 +53,22 @@ async function actionDispatcherNode(state) {
       }
     }
 
-    // STEP 3: Save system reply to MongoDB for Conversations tab chat history
+    // STEP 3: Save user question & assistant reply to MongoDB for Conversations tab history
     if (conversationId) {
-      await Conversation.create({ conversationId, roles: 'SYSTEM', message: replyText });
+      if (state.userText && state.userText.trim()) {
+        await Conversation.create({
+          conversationId,
+          roles: 'USER',
+          message: state.userText.trim(),
+        });
+      }
+      if (replyText && replyText.trim()) {
+        await Conversation.create({
+          conversationId,
+          roles: 'ASSISTANT',
+          message: replyText.trim(),
+        });
+      }
     }
 
   } catch (dbErr) {

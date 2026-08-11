@@ -23,8 +23,22 @@ async function negotiatorNode(state) {
   // ── LIST DUES ──────────────────────────────────────────────────────────────
   if (intent === 'list_dues') {
     const filter = { userId };
-    let label = '';
+    let statusLabel = '';
+    const textLower = (userText || '').toLowerCase();
 
+    // Check if user specifically requested UNPAID, OVERDUE, or PAID status
+    if (textLower.includes('unpaid') || textLower.includes('pending')) {
+      filter.status = { $in: ['UNPAID', 'OVERDUE'] };
+      statusLabel = ' unpaid';
+    } else if (textLower.includes('overdue')) {
+      filter.status = 'OVERDUE';
+      statusLabel = ' overdue';
+    } else if (textLower.includes('paid') && !textLower.includes('unpaid')) {
+      filter.status = 'PAID';
+      statusLabel = ' paid';
+    }
+
+    let label = '';
     if (customer) {
       label = ' for customer ' + customer.name;
       const safeName = customer.name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
@@ -44,14 +58,14 @@ async function negotiatorNode(state) {
 
     const dues = await Dues.find(filter).sort({ dueDate: 1 }).lean();
     if (!dues.length) {
-      return { replyText: 'No dues found' + label + '.', negotiationOutcome: 'GENERAL_REPLY', nextStep: 'dispatch' };
+      return { replyText: 'No' + statusLabel + ' dues found' + label + '.', negotiationOutcome: 'GENERAL_REPLY', nextStep: 'dispatch' };
     }
     const total = dues.reduce((s, d) => s + (d.amount || 0), 0);
     const lines = dues.slice(0, 5).map((d, i) =>
       (i + 1) + '. ' + d.title + ': Rs.' + d.amount + ' (Due ' + new Date(d.dueDate).toLocaleDateString() + ') [' + d.status + ']'
     ).join('; ');
     return {
-      replyText: 'Found ' + dues.length + ' due(s)' + label + ' totalling Rs.' + total.toFixed(2) + ': ' + lines,
+      replyText: 'Found ' + dues.length + statusLabel + ' due(s)' + label + ' totalling Rs.' + total.toFixed(2) + ': ' + lines,
       negotiationOutcome: 'GENERAL_REPLY',
       nextStep: 'dispatch',
     };
