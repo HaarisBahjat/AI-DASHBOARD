@@ -268,36 +268,44 @@ Today's date: ${new Date().toISOString().split('T')[0]}
 };
 
 exports.generateFinancialInsight = async (userPrompt, duesList = []) => {
-  const duesSummary = duesList.map(d => 
-    `- Title: "${d.title}", Amount: $${d.amount}, Due: ${new Date(d.dueDate).toLocaleDateString()}, Category: ${d.category || 'general'}`
-  ).join('\n');
+  const duesSummary = duesList.length > 0 
+    ? duesList.map(d => `- ${d.title}: Rs.${d.amount} due ${new Date(d.dueDate).toLocaleDateString()} (${d.category || 'general'})`).join('\n')
+    : 'No dues currently recorded.';
 
   const prompt = `
-You are an intelligent AI Financial Advisor and Dues Assistant. You have access to the user's current dues portfolio:
+You are a financial advisor. CRITICAL: You MUST NEVER hallucinate or invent any bills, amounts, dates, or company names.
 
-Current Dues:
-${duesSummary || 'No dues currently recorded.'}
+User's Current Dues (ONLY these bills exist):
+${duesSummary}
 
-User Question / Prompt:
+User Question:
 "${userPrompt}"
 
-Your Task:
-1. Provide helpful, smart financial analysis or advice based on their actual dues (e.g. prioritizing overdue bills, cash flow tips, setting up reminders, or summarizing expenses by category).
-2. If they ask a general question, answer it warmly and intelligently while referencing their financial situation if relevant.
-3. Keep your response CONCISE (under 60 words) and formatted for natural spoken voice audio (no markdown, no bullet points, no asterisks).
-4. CRITICAL ANTI-HALLUCINATION RULE: NEVER invent, generate, or hallucinate any fake bills, receipts, dates, company names, or dollar amounts (e.g. NEVER mention fake "Company Name Receipt" or $1913.68). Only reference the EXACT dues listed in the Current Dues section above. If Current Dues is empty, state clearly that there are no active dues recorded.
-5. CRITICAL: You MUST ALWAYS respond in clear, professional English regardless of what language the user prompt appears to be in.
-`;
+Rules:
+1. ONLY reference bills listed above. NO EXCEPTIONS.
+2. If asked about bills not in the list, say "I don't see that bill in your records."
+3. Do NOT invent amounts, dates, or company names.
+4. Keep response under 50 words for voice audio.
+5. Use Rs. for currency (not $).
+6. If no dues exist, say: "You have no recorded dues at the moment."
+7. If user mentions a customer/company name not found, do NOT make up a bill. Say: "I don't have a bill for [name] in your records."
+
+Respond in clear professional English.`;
 
   try {
     const response = await callGemini(
       { contents: [{ role: 'user', parts: [{ text: prompt }] }] },
-      { temperature: 0.3 }
+      { temperature: 0.2 }  // Lower = less hallucination
     );
     return extractText(response).trim();
   } catch (err) {
     console.error('generateFinancialInsight failed:', err.message);
-    return "I recommend reviewing your earliest upcoming dues first to avoid any late fees. Let me know if you want to set up reminders!";
+    // Safe fallback without any hallucination
+    if (duesList.length === 0) {
+      return "You have no recorded dues at the moment. Create a new invoice to start tracking.";
+    }
+    const totalDue = duesList.reduce((s, d) => s + (d.amount || 0), 0);
+    return "You have Rs." + totalDue.toFixed(2) + " total outstanding. I recommend paying the oldest bills first to avoid late fees.";
   }
 };
 

@@ -134,16 +134,25 @@ async function negotiatorNode(state) {
   }
 
   if (intent === 'confirm_paid') {
+    // MUST have a due to process payment
+    if (!due) {
+      return { 
+        negotiationOutcome: 'GENERAL_REPLY',
+        replyText: 'I could not identify which invoice you paid for. Please create an invoice first or specify which bill you paid.',
+        nextStep: 'dispatch' 
+      };
+    }
+
     // Handle PARTIAL or FULL payment claims
     const paymentAmount = intentData && intentData.paymentAmount ? Number(intentData.paymentAmount) : null;
-    const dueAmount = due ? Number(due.amount || 0) : 0;
+    const dueAmount = Number(due.amount || 0);
     
     if (paymentAmount && dueAmount > 0 && paymentAmount < dueAmount) {
       // Partial payment
       const remaining = dueAmount - paymentAmount;
       return { 
         negotiationOutcome: 'PARTIAL_PAYMENT', 
-        replyText: 'Thank you! We noted your partial payment of Rs.' + paymentAmount + '. Outstanding balance: Rs.' + remaining.toFixed(2) + '. Our team will verify this payment within 1-2 business days.',
+        replyText: 'Thank you! Noted your partial payment of Rs.' + paymentAmount + ' for "' + due.title + '". Outstanding: Rs.' + remaining.toFixed(2) + '. We will verify within 1-2 business days.',
         nextStep: 'needs_compliance' 
       };
     }
@@ -151,7 +160,7 @@ async function negotiatorNode(state) {
     // Full payment or amount not specified
     return { 
       negotiationOutcome: 'PAID', 
-      replyText: 'Thank you! Our team will verify your payment within 1-2 business days.', 
+      replyText: 'Thank you! Noted your payment for "' + due.title + '". We will verify within 1-2 business days.', 
       nextStep: 'needs_compliance' 
     };
   }
