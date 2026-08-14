@@ -40,9 +40,13 @@ async function humanApprovalNode(state) {
 // If entityResolver created a due, or produced an early reply (missing fields / error),
 // route directly to actionDispatcher.
 // Otherwise, route to riskProfiler -> negotiator!
+//
+// IMPORTANT: entityResolver explicitly sets replyText: '' when it wants the
+// negotiator to run (e.g. confirm_paid). Only route to dispatch when replyText
+// is a non-empty, meaningful reply \u2014 not an empty string from a reset.
 function routeAfterEntityResolver(state) {
   if (state.negotiationOutcome === 'DUE_CREATED') return 'dispatch';
-  if (state.replyText && state.replyText.length > 0) return 'dispatch';
+  if (state.replyText && state.replyText.trim().length > 0) return 'dispatch';
   return 'riskProfiler';
 }
 

@@ -40,15 +40,16 @@ async function actionDispatcherNode(state) {
         await Dues.findByIdAndUpdate(due._id, { status: 'VERIFYING' });
 
       } else if (negotiationOutcome === 'PARTIAL_PAYMENT') {
-        // Track partial payment without marking as PAID
+        // Track partial payment without marking as PAID.
+        // Use $push so the DB array is updated atomically — avoids
+        // using the stale in-memory due.metadata.payments snapshot.
         const paymentAmount = (intentData && intentData.paymentAmount) ? Number(intentData.paymentAmount) : 0;
         const paymentRecord = { amount: paymentAmount, date: new Date(), status: 'PENDING_VERIFICATION' };
-        const existingPayments = due.metadata && due.metadata.payments ? due.metadata.payments : [];
         await Dues.findByIdAndUpdate(
-          due._id, 
-          { 
+          due._id,
+          {
             status: 'VERIFYING',
-            'metadata.payments': [...existingPayments, paymentRecord]
+            $push: { 'metadata.payments': paymentRecord }
           }
         );
 

@@ -8,14 +8,17 @@
  * the customer's verbal claim — a common fraud/error vector.
  *
  * OUTCOME:
- *   - VERIFIED  → Razorpay webhook confirmed payment → mark PAID
- *   - CLEAR     → Plausible claim but unverified → mark VERIFYING
- *   - SUSPICIOUS → Claim seems fraudulent → flag and mark VERIFYING
+ *   - VERIFIED       → Razorpay webhook confirmed payment → mark PAID
+ *   - CLEAR          → Plausible claim but unverified → mark VERIFYING
+ *   - SUSPICIOUS     → Claim seems fraudulent → flag and mark VERIFYING
+ *
+ * IMPORTANT: When negotiationOutcome is PARTIAL_PAYMENT, we preserve it
+ * so actionDispatcher stores the partial amount correctly.
  */
 const { Dues } = require('../../models/db');
 
 async function complianceGuardNode(state) {
-  const { due } = state;
+  const { due, negotiationOutcome } = state;
 
   if (!due) {
     return { complianceStatus: 'CLEAR', negotiationOutcome: 'VERIFYING', replyText: 'Thank you. Our team will verify the payment and update records within 1-2 business days.', nextStep: 'dispatch' };
@@ -27,6 +30,17 @@ async function complianceGuardNode(state) {
 
   if (isVerified) {
     return { complianceStatus: 'VERIFIED', negotiationOutcome: 'PAID', replyText: 'Your payment has been verified! The invoice is now marked as paid. Thank you!', nextStep: 'dispatch' };
+  }
+
+  // CRITICAL FIX: If this was a PARTIAL_PAYMENT, preserve the outcome so
+  // actionDispatcher correctly logs the partial amount in metadata.payments.
+  // Do NOT overwrite it with VERIFYING — that loses the payment amount.
+  if (negotiationOutcome === 'PARTIAL_PAYMENT') {
+    return {
+      complianceStatus: 'CLEAR',
+      negotiationOutcome: 'PARTIAL_PAYMENT', // Preserved — actionDispatcher handles it
+      nextStep: 'dispatch',
+    };
   }
 
   // Not yet confirmed by Razorpay — set VERIFYING status, not PAID

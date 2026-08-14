@@ -153,3 +153,44 @@ exports.extractText = (response) => {
     const raw = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
     return raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 };
+
+// ─── Function Calling support ──────────────────────────────────────────────
+
+/**
+ * Call Gemini with Function Calling (tool declarations).
+ * Gemini is forced to respond with a structured functionCall object
+ * instead of free-form text, eliminating hallucination in entity extraction.
+ *
+ * @param {object} payload   - Gemini request body (contents array)
+ * @param {Array}  tools     - Array of { functionDeclarations: [...] }
+ * @param {object} [options] - { temperature }
+ * @returns {Promise<object>} Raw Gemini response
+ */
+exports.callGeminiWithTools = async (payload, tools, options = {}) => {
+    const body = {
+        ...payload,
+        tools,
+        tool_config: { function_calling_config: { mode: 'ANY' } }
+    };
+    return exports.callGemini(body, options);
+};
+
+/**
+ * Extract the functionCall result from a Gemini Function Calling response.
+ * Returns { name, args } or null if Gemini returned text instead of a call.
+ *
+ * @param {object} response - return value of callGeminiWithTools()
+ * @returns {{ name: string, args: object } | null}
+ */
+exports.extractFunctionCall = (response) => {
+    const parts = response.data?.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
+        if (part.functionCall) {
+            return {
+                name: part.functionCall.name,
+                args: part.functionCall.args || {},
+            };
+        }
+    }
+    return null; // Gemini returned text — caller should fall back to general_chat
+};

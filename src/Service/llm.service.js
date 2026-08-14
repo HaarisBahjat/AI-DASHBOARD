@@ -7,81 +7,198 @@
  *   - 30s hard timeout per request
  */
 
-const { callGemini, extractText } = require('./gemini.limiter');
+const { callGemini, callGeminiWithTools, extractText, extractFunctionCall } = require('./gemini.limiter');
 
 // Max conversation turns to include in the LLM prompt.
 // Older turns are dropped to keep tokens bounded and latency consistent.
 const MAX_HISTORY_TURNS = parseInt(process.env.CALL_HISTORY_TURNS || '6', 10);
 
 // ─────────────────────────────────────────────────────────────────────────────
+// INTENT TOOL DEFINITIONS
+// Gemini Function Calling schema for all 12 supported intents.
+// mode: 'ANY' forces Gemini to always call one of these — never free text.
+// This eliminates JSON.parse, hallucinated customer names, and broken responses.
+// ─────────────────────────────────────────────────────────────────────────────
+const INTENT_TOOLS = [
+  {
+    functionDeclarations: [
+      {
+        name: 'create_due',
+        description: 'Create a new invoice or due for a customer.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            customerName: { type: 'STRING', description: 'Name of the customer/business this due belongs to. Leave empty if not mentioned.' },
+            title:        { type: 'STRING', description: 'Short bill/invoice title, e.g. Rent, Electricity, Entertainment. Do NOT put customer name here.' },
+            description:  { type: 'STRING', description: 'Optional extra description of the bill.' },
+            amount:       { type: 'NUMBER', description: 'Amount in rupees as a positive number.' },
+            dueDate:      { type: 'STRING', description: 'Due date in YYYY-MM-DD format. Resolve relative dates like "tomorrow" from today.' },
+            category:     { type: 'STRING', description: 'Category: utilities | shopping | food | entertainment | general. Default: general.' },
+          },
+          required: ['title', 'amount', 'dueDate'],
+        },
+      },
+      {
+        name: 'update_due',
+        description: 'Update fields of an existing invoice or due.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            dueId:        { type: 'STRING', description: 'MongoDB _id of the due to update, if known.' },
+            customerName: { type: 'STRING', description: 'Customer name to look up the due if dueId is unknown.' },
+            title:        { type: 'STRING', description: 'New title for the due.' },
+            amount:       { type: 'NUMBER', description: 'New amount in rupees.' },
+            dueDate:      { type: 'STRING', description: 'New due date in YYYY-MM-DD format.' },
+            category:     { type: 'STRING', description: 'New category.' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'delete_due',
+        description: 'Delete an existing invoice or due.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            title:        { type: 'STRING', description: 'Title of the due to delete.' },
+            customerName: { type: 'STRING', description: 'Customer name to narrow down which due to delete.' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'list_dues',
+        description: 'List dues/invoices. Can filter by customer name or status.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            customerName:  { type: 'STRING', description: 'Filter dues for a specific customer name.' },
+            statusFilter:  { type: 'STRING', description: 'Filter by status: unpaid | overdue | paid | all. Default: all.' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'sum_dues',
+        description: 'Get the total outstanding balance of all unpaid dues.',
+        parameters: { type: 'OBJECT', properties: {}, required: [] },
+      },
+      {
+        name: 'top_upcoming',
+        description: 'Get the top N upcoming dues sorted by due date.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            topK: { type: 'NUMBER', description: 'Number of upcoming dues to return. Default: 3.' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'get_customer_info',
+        description: 'Get details about a specific customer including outstanding invoices.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            customerName: { type: 'STRING', description: 'Name of the customer to look up.' },
+          },
+          required: ['customerName'],
+        },
+      },
+      {
+        name: 'list_customers',
+        description: 'List all customer contacts.',
+        parameters: { type: 'OBJECT', properties: {}, required: [] },
+      },
+      {
+        name: 'call_customer',
+        description: 'Trigger an automated voice call or follow-up for a customer.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            customerName: { type: 'STRING', description: 'Name of the customer to call.' },
+          },
+          required: ['customerName'],
+        },
+      },
+      {
+        name: 'confirm_paid',
+        description: 'Record that a customer has paid a bill — fully or partially.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            customerName:  { type: 'STRING', description: 'Name of the customer who paid. Optional if context is clear.' },
+            dueTitle:      { type: 'STRING', description: 'Title of the specific bill being paid. Optional if only one unpaid bill exists.' },
+            paymentAmount: { type: 'NUMBER', description: 'Amount paid in rupees. If the full amount was paid, leave null.' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'financial_advice',
+        description: 'Provide financial advice, budgeting tips, or bill prioritization suggestions.',
+        parameters: { type: 'OBJECT', properties: {}, required: [] },
+      },
+      {
+        name: 'general_chat',
+        description: 'Fallback for any message that does not match a specific financial action.',
+        parameters: { type: 'OBJECT', properties: {}, required: [] },
+      },
+    ],
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
 // detectIntent
-// Used by the in-app voice chat (socket) to parse user messages.
+// Converts raw user text into a structured intent object using Gemini
+// Function Calling. Gemini is FORCED (mode: ANY) to call one of the 12
+// declared functions — no free-text JSON, no hallucinated fields.
+//
+// Returns: { intent, customerName?, title?, amount?, dueDate?, ... }
 // ─────────────────────────────────────────────────────────────────────────────
 exports.detectIntent = async (text) => {
-  const prompt = `
-You are an intelligent intent detection and financial assistant system for a Dues Reminder app.
-
-Extract intent and structured data. For dates, if the user says "tomorrow", calculate it from today's date. Always return dates in YYYY-MM-DD format.
-
-Important: Always return intent in LOWERCASE. Valid intents are ONLY:
-- create_due
-- update_due
-- delete_due
-- list_dues
-- sum_dues
-- top_upcoming
-- get_customer_info
-- list_customers
-- call_customer
-- confirm_paid
-- financial_advice
-- general_chat
-
-When creating a due (intent: "create_due"):
-- If the user specifies a customer name (e.g. "for Rajesh Traders", "customer Sharma"), extract it as customerName.
-- If the user specifies an item/bill title (e.g. "title entertainment", "Rent bill", "Electricity"), extract it as title.
-- Do NOT mix up title and customerName.
-
-If the user claims they paid a bill (e.g. "I paid 1000 rupees", "Paid 500 for the electricity bill", "I already paid this") → use "confirm_paid" and extract paymentAmount if mentioned.
-If the user asks about a specific customer (e.g. "Who is Rajesh Traders?", "Tell me about Rajesh Traders", "Show info for Sharma Electronics") → use "get_customer_info" and extract customerName.
-If the user asks for dues/invoices, asks if a due/bill is still there, or checks bill status (e.g. "is the due still there", "is the bill pending", "give me dues of customer named haarismalick", "show dues for Rajesh Traders", "invoices of Sharma") → use "list_dues".
-If the user asks to list all customers (e.g. "Show my customers", "List customers") → use "list_customers".
-If the user asks to call or follow up with a customer (e.g. "Call Rajesh Traders", "Trigger follow up for Sharma Electronics") → use "call_customer" and extract customerName.
-If the user asks for the total sum, balance, or how much they owe in total → use "sum_dues".
-If the user asks for top upcoming, urgent, or next N bills → use "top_upcoming" and extract topK (default 3).
-If the user asks for financial suggestions, budgeting tips, which bill to prioritize paying, or advice → use "financial_advice".
-
-Return ONLY valid JSON in this format (all intent values must be lowercase):
-
-{
-  "intent": "create_due",
-  "customerName": "",
-  "title": "",
-  "description": "",
-  "amount": null,
-  "dueDate": "YYYY-MM-DD",
-  "dueId": "",
-  "category": "",
-  "topK": 3,
-  "paymentAmount": null
-}
-
+  const systemPrompt = `You are an intent detection assistant for a Dues Reminder app.
 Today's date: ${new Date().toISOString().split('T')[0]}
-Message:
-"${text}"
-`;
+
+Rules:
+- Resolve relative dates like "tomorrow" or "next Monday" to YYYY-MM-DD.
+- NEVER confuse customerName with title. A customer name is a person/business; a title is a bill description.
+- For "confirm_paid": extract paymentAmount only if the user explicitly states how much they paid.
+- If unclear, default to general_chat.`;
 
   try {
-    const response = await callGemini(
-      { contents: [{ role: 'user', parts: [{ text: prompt }] }] },
+    const response = await callGeminiWithTools(
+      {
+        contents: [
+          { role: 'user', parts: [{ text: systemPrompt + '\n\nUser message: "' + text + '"' }] },
+        ],
+      },
+      INTENT_TOOLS,
       { temperature: 0 }
     );
-    return JSON.parse(extractText(response));
+
+    const fnCall = extractFunctionCall(response);
+
+    if (!fnCall) {
+      // Gemini returned text instead of a function call (should not happen with mode: ANY, but safe fallback)
+      console.warn('[detectIntent] No function call returned by Gemini. Falling back to general_chat.');
+      return { intent: 'general_chat' };
+    }
+
+    const intent = fnCall.name; // e.g. 'create_due', 'confirm_paid'
+    const args   = fnCall.args; // already typed — no JSON.parse needed
+
+    console.log('[LLM] Function call:', intent, args);
+
+    // Normalize: ensure intent field is present and lowercase
+    return { intent, ...args };
+
   } catch (err) {
-    console.error('detectIntent failed:', err.response?.data || err.message);
+    console.error('[detectIntent] Gemini Function Call failed:', err.response?.data || err.message);
     throw new Error('Intent detection failed');
   }
 };
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // detectCallIntent

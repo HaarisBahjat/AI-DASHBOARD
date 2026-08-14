@@ -47,11 +47,11 @@ async function entityResolverNode(state) {
     if (!intentData.amount)  missing.push('amount');
     if (!intentData.dueDate) missing.push('due date');
     if (missing.length > 0) {
-      return { intentData, customer, replyText: 'To create this due I still need: ' + missing.join(', ') + '.', nextStep: 'dispatch' };
+      return { intentData, customer, replyText: 'To create this due I still need: ' + missing.join(', ') + '.', nextStep: 'dispatch', negotiationOutcome: null };
     }
     const parsedDate = new Date(intentData.dueDate);
     if (isNaN(parsedDate.getTime())) {
-      return { intentData, customer, replyText: 'The due date does not look valid. Try saying next Monday or 2026-08-18.', nextStep: 'dispatch' };
+      return { intentData, customer, replyText: 'The due date does not look valid. Try saying next Monday or 2026-08-18.', nextStep: 'dispatch', negotiationOutcome: null };
     }
     const doc = await Dues.create({
       userId,
@@ -73,7 +73,7 @@ async function entityResolverNode(state) {
 
   // STEP 4: For confirm_paid — identify which due is being paid for
   if (intent === 'confirm_paid') {
-    let targetDue = state.due || null;
+    let targetDue = null; // Always start fresh — never blindly trust stale state.due
     let targetCustomer = customer;
     
     // Strategy 1: If customer name is mentioned, find their dues
@@ -82,12 +82,11 @@ async function entityResolverNode(state) {
       const cust = await Customer.findOne({ userId, name: { $regex: custName, $options: 'i' } }).lean();
       
       if (cust) {
-        // Customer exists — find their unpaid dues
         const custDues = await Dues.find({ 
           userId, 
           customerId: cust._id,
           status: { $in: ['UNPAID', 'OVERDUE', 'PTP'] } 
-        }).lean();
+        }).sort({ createdAt: -1 }).lean();
         
         if (custDues.length === 1) {
           targetDue = custDues[0];
@@ -95,42 +94,70 @@ async function entityResolverNode(state) {
           console.log('[EntityResolver] Found due for customer:', custName, targetDue.title);
         } else if (custDues.length > 1) {
           const duesList = custDues.map((d, i) => (i + 1) + '. ' + d.title + ' Rs.' + d.amount).join('; ');
-          return { intentData, replyText: 'Found ' + custDues.length + ' unpaid bills for ' + custName + ': ' + duesList + '. Which one did you pay for?', nextStep: 'dispatch' };
+          return { intentData, replyText: 'Found ' + custDues.length + ' unpaid bills for ' + custName + ': ' + duesList + '. Which one did you pay for?', nextStep: 'dispatch', negotiationOutcome: null };
         } else {
-          return { intentData, replyText: 'Customer ' + custName + ' has no unpaid invoices. Please create a new one first.', nextStep: 'dispatch' };
+          return { intentData, replyText: 'Customer ' + custName + ' has no unpaid invoices. Please create a new one first.', nextStep: 'dispatch', negotiationOutcome: null };
         }
       } else {
-        return { intentData, replyText: 'Customer \"' + custName + '\" not found. Create an invoice first.', nextStep: 'dispatch' };
+        return { intentData, replyText: 'Customer "' + custName + '" not found. Create an invoice first.', nextStep: 'dispatch', negotiationOutcome: null };
+      }
+    }
+
+    // Strategy 1b: If the LLM extracted a specific bill title, find it by title
+    if (!targetDue && intentData.dueTitle && intentData.dueTitle.trim()) {
+      const safeTitle = intentData.dueTitle.trim().replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+      targetDue = await Dues.findOne({
+        userId,
+        title: { $regex: safeTitle, $options: 'i' },
+        status: { $in: ['UNPAID', 'OVERDUE', 'PTP'] },
+      }).sort({ createdAt: -1 }).lean();
+      if (targetDue) console.log('[EntityResolver] Matched due by title:', targetDue.title);
+    }
+    
+    // Strategy 2: Use due from conversation state only if it is still unpaid
+    // Verify it is still unpaid in DB — don't trust the in-memory snapshot status
+    if (!targetDue && state.due && state.due._id) {
+      const freshDue = await Dues.findOne({
+        _id: state.due._id,
+        userId,
+        status: { $in: ['UNPAID', 'OVERDUE', 'PTP'] },
+      }).lean();
+      if (freshDue) {
+        targetDue = freshDue;
+        console.log('[EntityResolver] Confirmed due from state still unpaid:', targetDue.title);
+      } else {
+        console.log('[EntityResolver] State due is already paid/closed — ignoring stale reference.');
       }
     }
     
-    // Strategy 2: Use due from conversation state
-    if (!targetDue && state.due) {
-      targetDue = state.due;
-    }
-    
-    // Strategy 3: Find most recent unpaid due
+    // Strategy 3: Find the most RECENTLY CREATED unpaid due
+    // Sort by createdAt DESC (not dueDate) so "the one I just created" is always first
     if (!targetDue) {
       const unpaidDues = await Dues.find({ userId, status: { $in: ['UNPAID', 'OVERDUE'] } })
-        .sort({ dueDate: -1 })
+        .sort({ createdAt: -1 }) // FIX: was dueDate: -1 — wrong due was picked for recent invoices
         .limit(3)
         .lean();
       
       if (unpaidDues.length === 0) {
-        return { intentData, replyText: 'No unpaid dues found. Create an invoice first.', nextStep: 'dispatch' };
+        return { intentData, replyText: 'No unpaid dues found. Create an invoice first.', nextStep: 'dispatch', negotiationOutcome: null };
       } else if (unpaidDues.length === 1) {
         targetDue = unpaidDues[0];
-        console.log('[EntityResolver] Auto-resolved due:', targetDue.title);
+        console.log('[EntityResolver] Auto-resolved most recent due:', targetDue.title);
       } else {
         const duesList = unpaidDues.map((d, i) => (i + 1) + '. ' + d.title + ' Rs.' + d.amount).join('; ');
-        return { intentData, replyText: 'Found ' + unpaidDues.length + ' unpaid dues. Which one? ' + duesList, nextStep: 'dispatch' };
+        return { intentData, replyText: 'Found ' + unpaidDues.length + ' unpaid dues. Which one? ' + duesList, nextStep: 'dispatch', negotiationOutcome: null };
       }
     }
     
-    return { intentData, customer: targetCustomer, due: targetDue };
+    // CRITICAL: Reset negotiationOutcome to null so the DUE_CREATED shortcut
+    // in routeAfterEntityResolver does NOT fire from a prior turn's stale value.
+    return { intentData, customer: targetCustomer, due: targetDue, replyText: '', negotiationOutcome: null };
   }
 
-  // STEP 5: All other intents — pass entities to riskProfiler then negotiator\n  return { intentData, customer };
+  // STEP 5: All other intents — pass entities to riskProfiler then negotiator
+  // CRITICAL: Reset negotiationOutcome to null so a stale 'DUE_CREATED' value
+  // from a prior turn never short-circuits the graph router on the next turn.
+  return { intentData, customer, replyText: '', negotiationOutcome: null };
 }
 
 module.exports = { entityResolverNode };
