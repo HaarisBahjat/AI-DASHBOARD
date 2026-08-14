@@ -39,6 +39,19 @@ async function actionDispatcherNode(state) {
       } else if (negotiationOutcome === 'VERIFYING') {
         await Dues.findByIdAndUpdate(due._id, { status: 'VERIFYING' });
 
+      } else if (negotiationOutcome === 'PARTIAL_PAYMENT') {
+        // Track partial payment without marking as PAID
+        const paymentAmount = (intentData && intentData.paymentAmount) ? Number(intentData.paymentAmount) : 0;
+        const paymentRecord = { amount: paymentAmount, date: new Date(), status: 'PENDING_VERIFICATION' };
+        const existingPayments = due.metadata && due.metadata.payments ? due.metadata.payments : [];
+        await Dues.findByIdAndUpdate(
+          due._id, 
+          { 
+            status: 'VERIFYING',
+            'metadata.payments': [...existingPayments, paymentRecord]
+          }
+        );
+
       } else if (negotiationOutcome === 'DISPUTE') {
         await Dues.findByIdAndUpdate(due._id, { 'metadata.disputed': true, 'metadata.disputedAt': new Date() });
       }

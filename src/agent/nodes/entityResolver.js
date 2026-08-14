@@ -71,8 +71,45 @@ async function entityResolverNode(state) {
     };
   }
 
-  // STEP 4: All other intents — pass entities to riskProfiler then negotiator
-  return { intentData, customer };
+  // STEP 4: For confirm_paid — identify which due is being paid for
+  if (intent === 'confirm_paid') {
+    // If no due is in state, try to find an unpaid one
+    let targetDue = state.due || null;
+    
+    if (!targetDue) {
+      // No due in current conversation context — find the most recent unpaid due
+      const unpaidDues = await Dues.find({ userId, status: { $in: ['UNPAID', 'OVERDUE'] } })
+        .sort({ dueDate: -1 })
+        .limit(3)
+        .lean();
+      
+      if (unpaidDues.length === 0) {
+        return { 
+          intentData, 
+          replyText: 'No unpaid dues found. All invoices appear to be paid or in progress.',
+          nextStep: 'dispatch' 
+        };
+      } else if (unpaidDues.length === 1) {
+        // Only 1 unpaid due — assume it's the one they paid for
+        targetDue = unpaidDues[0];
+        console.log('[EntityResolver] Auto-resolved due from unpaid list:', targetDue.title);
+      } else {
+        // Multiple unpaid dues — ask user to clarify
+        const duesList = unpaidDues.map((d, i) => 
+          (i + 1) + '. ' + d.title + ' Rs.' + d.amount
+        ).join('; ');
+        return {
+          intentData,
+          replyText: 'I found ' + unpaidDues.length + ' unpaid dues. Which one did you pay for? ' + duesList,
+          nextStep: 'dispatch'
+        };
+      }
+    }
+    
+    return { intentData, customer, due: targetDue };
+  }
+
+  // STEP 5: All other intents — pass entities to riskProfiler then negotiator\n  return { intentData, customer };
 }
 
 module.exports = { entityResolverNode };

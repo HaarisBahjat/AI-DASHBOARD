@@ -33,6 +33,7 @@ Important: Always return intent in LOWERCASE. Valid intents are ONLY:
 - get_customer_info
 - list_customers
 - call_customer
+- confirm_paid
 - financial_advice
 - general_chat
 
@@ -41,6 +42,7 @@ When creating a due (intent: "create_due"):
 - If the user specifies an item/bill title (e.g. "title entertainment", "Rent bill", "Electricity"), extract it as title.
 - Do NOT mix up title and customerName.
 
+If the user claims they paid a bill (e.g. "I paid 1000 rupees", "Paid 500 for the electricity bill", "I already paid this") → use "confirm_paid" and extract paymentAmount if mentioned.
 If the user asks about a specific customer (e.g. "Who is Rajesh Traders?", "Tell me about Rajesh Traders", "Show info for Sharma Electronics") → use "get_customer_info" and extract customerName.
 If the user asks for dues/invoices, asks if a due/bill is still there, or checks bill status (e.g. "is the due still there", "is the bill pending", "give me dues of customer named haarismalick", "show dues for Rajesh Traders", "invoices of Sharma") → use "list_dues".
 If the user asks to list all customers (e.g. "Show my customers", "List customers") → use "list_customers".
@@ -60,7 +62,8 @@ Return ONLY valid JSON in this format (all intent values must be lowercase):
   "dueDate": "YYYY-MM-DD",
   "dueId": "",
   "category": "",
-  "topK": 3
+  "topK": 3,
+  "paymentAmount": null
 }
 
 Today's date: ${new Date().toISOString().split('T')[0]}

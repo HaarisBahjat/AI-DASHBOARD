@@ -134,8 +134,26 @@ async function negotiatorNode(state) {
   }
 
   if (intent === 'confirm_paid') {
-    // Route to complianceGuard — never mark PAID on customer's word alone
-    return { negotiationOutcome: 'PAID', replyText: 'Thank you! Our team will verify your payment within 1-2 business days.', nextStep: 'needs_compliance' };
+    // Handle PARTIAL or FULL payment claims
+    const paymentAmount = intentData && intentData.paymentAmount ? Number(intentData.paymentAmount) : null;
+    const dueAmount = due ? Number(due.amount || 0) : 0;
+    
+    if (paymentAmount && dueAmount > 0 && paymentAmount < dueAmount) {
+      // Partial payment
+      const remaining = dueAmount - paymentAmount;
+      return { 
+        negotiationOutcome: 'PARTIAL_PAYMENT', 
+        replyText: 'Thank you! We noted your partial payment of Rs.' + paymentAmount + '. Outstanding balance: Rs.' + remaining.toFixed(2) + '. Our team will verify this payment within 1-2 business days.',
+        nextStep: 'needs_compliance' 
+      };
+    }
+    
+    // Full payment or amount not specified
+    return { 
+      negotiationOutcome: 'PAID', 
+      replyText: 'Thank you! Our team will verify your payment within 1-2 business days.', 
+      nextStep: 'needs_compliance' 
+    };
   }
 
   if (intent === 'snooze') {
