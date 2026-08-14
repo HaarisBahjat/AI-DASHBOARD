@@ -42,32 +42,28 @@ exports.getCustomers = async (req, res) => {
     // Fetch all customers for this user
     const customers = await Customer.find({ userId }).lean();
 
-    // Aggregate unpaid dues grouped by customerId
-    const dueAgg = await Dues.aggregate([
-      {
-        $match: {
-          userId: new mongoose.Types.ObjectId(userId),
-          status: { $in: ['UNPAID', 'OVERDUE', 'PTP', 'VERIFYING'] },
-        },
-      },
-      {
-        $group: {
-          _id: '$customerId',
-          totalDue: { $sum: '$amount' },
-          invoiceCount: { $sum: 1 },
-          dueDates: { $push: '$dueDate' },
-          statuses: { $push: '$status' },
-        },
-      },
-    ]);
-
-    const dueMap = new Map(dueAgg.map((d) => [String(d._id), d]));
+    // Fetch all active dues for this user (unpaid, overdue, ptp, verifying)
+    const activeDues = await Dues.find({
+      userId,
+      status: { $in: ['UNPAID', 'OVERDUE', 'PTP', 'VERIFYING'] },
+    }).lean();
 
     const result = customers.map((c) => {
-      const agg = dueMap.get(String(c._id)) || { totalDue: 0, invoiceCount: 0, dueDates: [] };
+      const safeName = c.name ? c.name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&') : '';
+      const nameRegex = safeName ? new RegExp(safeName, 'i') : null;
+
+      const custDues = activeDues.filter((d) => {
+        if (d.customerId && String(d.customerId) === String(c._id)) return true;
+        if (!d.customerId && nameRegex && nameRegex.test(d.title || '')) return true;
+        return false;
+      });
+
+      const totalDue = custDues.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+      const invoiceCount = custDues.length;
+      const dueDates = custDues.map((d) => d.dueDate);
 
       // Worst aging: pick the most overdue invoice
-      const worstBucket = (agg.dueDates || []).reduce((worst, date) => {
+      const worstBucket = dueDates.reduce((worst, date) => {
         const bucket = computeAgingBucket(date);
         const order = { 'current': 0, '0-30': 1, '31-60': 2, '61-90': 3, '90+': 4 };
         return (order[bucket] > order[worst]) ? bucket : worst;
@@ -75,8 +71,8 @@ exports.getCustomers = async (req, res) => {
 
       return {
         ...c,
-        totalDue: agg.totalDue,
-        invoiceCount: agg.invoiceCount,
+        totalDue,
+        invoiceCount,
         agingBucket: worstBucket,
       };
     });

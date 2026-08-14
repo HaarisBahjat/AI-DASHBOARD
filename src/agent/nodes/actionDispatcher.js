@@ -33,22 +33,45 @@ async function actionDispatcherNode(state) {
         await Dues.findByIdAndUpdate(due._id, { status: 'PTP', promiseDate: new Date(Date.now() + 86400000), 'metadata.promiseToPay': true });
 
       } else if (negotiationOutcome === 'PAID') {
-        // Only reached if complianceGuard set status=VERIFIED
-        await Dues.findByIdAndUpdate(due._id, { status: 'PAID' });
+        const freshDue = await Dues.findById(due._id).lean();
+        const currentAmount = freshDue ? Number(freshDue.amount || 0) : Number(due.amount || 0);
+        const originalAmount = (freshDue && freshDue.metadata && freshDue.metadata.originalAmount) ? freshDue.metadata.originalAmount : currentAmount;
+        const prevPaid = Number(freshDue?.metadata?.totalPaid || 0);
+        const paymentRecord = { amount: currentAmount, date: new Date(), status: 'COMPLETED' };
+
+        await Dues.findByIdAndUpdate(due._id, {
+          status: 'PAID',
+          ...(customer && !freshDue?.customerId ? { customerId: customer._id } : {}),
+          'metadata.originalAmount': originalAmount,
+          'metadata.totalPaid': prevPaid + currentAmount,
+          'metadata.lastPaymentDate': new Date(),
+          $push: { 'metadata.payments': paymentRecord }
+        });
 
       } else if (negotiationOutcome === 'VERIFYING') {
         await Dues.findByIdAndUpdate(due._id, { status: 'VERIFYING' });
 
       } else if (negotiationOutcome === 'PARTIAL_PAYMENT') {
-        // Track partial payment without marking as PAID.
-        // Use $push so the DB array is updated atomically — avoids
-        // using the stale in-memory due.metadata.payments snapshot.
+        // Fetch fresh due from database to avoid stale in-memory calculations
+        const freshDue = await Dues.findById(due._id).lean();
+        const currentAmount = freshDue ? Number(freshDue.amount || 0) : Number(due.amount || 0);
         const paymentAmount = (intentData && intentData.paymentAmount) ? Number(intentData.paymentAmount) : 0;
-        const paymentRecord = { amount: paymentAmount, date: new Date(), status: 'PENDING_VERIFICATION' };
+        const remainingAmount = Math.max(0, currentAmount - paymentAmount);
+        const isFullyPaid = remainingAmount === 0;
+
+        const originalAmount = (freshDue && freshDue.metadata && freshDue.metadata.originalAmount) ? freshDue.metadata.originalAmount : currentAmount;
+        const prevPaid = Number(freshDue?.metadata?.totalPaid || 0);
+        const paymentRecord = { amount: paymentAmount, date: new Date(), status: 'COMPLETED' };
+
         await Dues.findByIdAndUpdate(
           due._id,
           {
-            status: 'VERIFYING',
+            amount: remainingAmount,
+            status: isFullyPaid ? 'PAID' : 'UNPAID',
+            ...(customer && !freshDue?.customerId ? { customerId: customer._id } : {}),
+            'metadata.originalAmount': originalAmount,
+            'metadata.totalPaid': prevPaid + paymentAmount,
+            'metadata.lastPaymentDate': new Date(),
             $push: { 'metadata.payments': paymentRecord }
           }
         );

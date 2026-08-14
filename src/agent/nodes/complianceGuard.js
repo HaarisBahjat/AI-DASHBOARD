@@ -32,18 +32,26 @@ async function complianceGuardNode(state) {
     return { complianceStatus: 'VERIFIED', negotiationOutcome: 'PAID', replyText: 'Your payment has been verified! The invoice is now marked as paid. Thank you!', nextStep: 'dispatch' };
   }
 
-  // CRITICAL FIX: If this was a PARTIAL_PAYMENT, preserve the outcome so
-  // actionDispatcher correctly logs the partial amount in metadata.payments.
-  // Do NOT overwrite it with VERIFYING — that loses the payment amount.
+  // If this was a PARTIAL_PAYMENT, preserve the outcome so
+  // actionDispatcher reduces the remaining balance and logs the payment.
   if (negotiationOutcome === 'PARTIAL_PAYMENT') {
     return {
       complianceStatus: 'CLEAR',
-      negotiationOutcome: 'PARTIAL_PAYMENT', // Preserved — actionDispatcher handles it
+      negotiationOutcome: 'PARTIAL_PAYMENT',
       nextStep: 'dispatch',
     };
   }
 
-  // Not yet confirmed by Razorpay — set VERIFYING status, not PAID
+  // If this was a PAID action, update the status to PAID
+  if (negotiationOutcome === 'PAID') {
+    return {
+      complianceStatus: 'CLEAR',
+      negotiationOutcome: 'PAID',
+      replyText: `Thank you! Noted payment for "${due.title}". Your records and balances have been updated.`,
+      nextStep: 'dispatch',
+    };
+  }
+
   return {
     complianceStatus: 'CLEAR',
     negotiationOutcome: 'VERIFYING',
