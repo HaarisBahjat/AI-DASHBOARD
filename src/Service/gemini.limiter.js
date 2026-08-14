@@ -28,7 +28,8 @@
 
 const axios = require('axios');
 
-const GEMINI_URL   = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
+const GEMINI_MODEL = () => process.env.GEMINI_MODEL || 'gemini-flash-latest';
+const GEMINI_URL   = () => `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL()}:generateContent`;
 const API_KEY      = () => process.env.GEMINI_API_KEY; // read lazily so env is loaded
 const WINDOW_MS    = 60_000; // 1 minute sliding window
 const RPM_LIMIT    = parseInt(process.env.GEMINI_RPM_LIMIT   || '12', 10); // 12 of 15 → 20% headroom
@@ -104,7 +105,7 @@ exports.callGemini = async (payload, options = {}) => {
 
         try {
             const response = await axios.post(
-                `${GEMINI_URL}?key=${API_KEY()}`,
+                `${GEMINI_URL()}?key=${API_KEY()}`,
                 body,
                 {
                     headers: { 'Content-Type': 'application/json' },
@@ -117,9 +118,9 @@ exports.callGemini = async (payload, options = {}) => {
             const status = err.response?.status;
 
             if (status === 429) {
-                // Jittered exponential backoff: 1s, 2s, 4s (+random 0-500ms)
-                const base  = Math.pow(2, attempt) * 1000;
-                const jitter = Math.random() * 500;
+                // Exponential backoff: 2s, 4s, 8s (+random 0-800ms)
+                const base  = Math.pow(2, attempt + 1) * 1000;
+                const jitter = Math.random() * 800;
                 const delay  = base + jitter;
                 console.warn(
                     `[Gemini Limiter] 429 received. ` +
