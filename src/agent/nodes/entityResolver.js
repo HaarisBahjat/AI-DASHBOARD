@@ -93,8 +93,31 @@ async function entityResolverNode(state) {
           targetCustomer = cust;
           console.log('[EntityResolver] Found due for customer:', custName, targetDue.title);
         } else if (custDues.length > 1) {
-          const duesList = custDues.map((d, i) => (i + 1) + '. ' + d.title + ' Rs.' + d.amount).join('; ');
-          return { intentData, replyText: 'Found ' + custDues.length + ' unpaid bills for ' + custName + ': ' + duesList + '. Which one did you pay for?', nextStep: 'dispatch', negotiationOutcome: null };
+          // If dueTitle was also extracted, match among customer's dues
+          if (intentData.dueTitle && intentData.dueTitle.trim()) {
+            const safeTitle = intentData.dueTitle.trim().replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+            const titleRegex = new RegExp(safeTitle, 'i');
+            const matched = custDues.find(d => titleRegex.test(d.title));
+            if (matched) {
+              targetDue = matched;
+              targetCustomer = cust;
+              console.log('[EntityResolver] Matched customer due by title:', targetDue.title);
+            }
+          }
+          // If paymentAmount matches exactly one due's outstanding amount, match that
+          if (!targetDue && intentData.paymentAmount) {
+            const pAmt = Number(intentData.paymentAmount);
+            const matchedByAmt = custDues.filter(d => Number(d.amount) === pAmt);
+            if (matchedByAmt.length === 1) {
+              targetDue = matchedByAmt[0];
+              targetCustomer = cust;
+              console.log('[EntityResolver] Matched customer due by amount:', targetDue.title);
+            }
+          }
+          if (!targetDue) {
+            const duesList = custDues.map((d, i) => (i + 1) + '. ' + d.title + ' (Rs.' + d.amount + ')').join('; ');
+            return { intentData, replyText: 'Found ' + custDues.length + ' unpaid bills for ' + custName + ': ' + duesList + '. Which one did you pay for?', nextStep: 'dispatch', negotiationOutcome: null };
+          }
         } else {
           return { intentData, replyText: 'Customer ' + custName + ' has no unpaid invoices. Please create a new one first.', nextStep: 'dispatch', negotiationOutcome: null };
         }

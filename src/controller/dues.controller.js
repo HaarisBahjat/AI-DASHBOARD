@@ -1,10 +1,10 @@
-const { Dues } = require('../models/db');
+const { Dues, Customer } = require('../models/db');
 const llmService = require('../Service/llm.service');
 
 // Create a new due
 exports.createDue = async (req, res) => {
     try {
-        const { amount, title, dueDate, customerId, invoiceNo } = req.body;
+        const { amount, title, dueDate, customerId, customerName, invoiceNo } = req.body;
 
         // ─ Input validation ────────────────────────────────────────────
         if (!amount || !title || !dueDate) {
@@ -31,15 +31,38 @@ exports.createDue = async (req, res) => {
             return res.status(400).json({ message: 'Invalid due date format' });
         }
 
+        let resolvedCustomerId = customerId || null;
+        if (!resolvedCustomerId && customerName && typeof customerName === 'string' && customerName.trim()) {
+            const safeName = customerName.trim();
+            let cust = await Customer.findOne({
+                userId: req.user._id,
+                name: { $regex: safeName.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), $options: 'i' }
+            });
+            if (!cust) {
+                cust = await Customer.create({ userId: req.user._id, name: safeName, status: 'Active' });
+            }
+            resolvedCustomerId = cust._id;
+        }
+
         const NewDue = await Dues.create({
             userId: req.user._id,
             amount: parsedAmount,
             title: title.trim(),
             dueDate: parsedDate,
-            customerId: customerId || null,
+            customerId: resolvedCustomerId,
             invoiceNo: invoiceNo ? String(invoiceNo).trim() : null,
+            metadata: {
+                originalAmount: parsedAmount,
+                totalPaid: 0,
+                payments: [],
+            }
         });
-        res.status(201).json({ message: 'Due created successfully', due: NewDue });
+
+        const populatedDue = await Dues.findById(NewDue._id)
+            .populate('customerId', 'name contactNo email place status')
+            .lean();
+
+        res.status(201).json({ message: 'Due created successfully', due: populatedDue || NewDue });
     } catch (error) {
         console.error('createDue Error:', error.message);
         res.status(500).json({ message: 'Error creating due' });
@@ -50,7 +73,10 @@ exports.createDue = async (req, res) => {
 exports.getDuesByUser = async (req, res) => {
     try {
         const userId = req.user._id;
-        const dues = await Dues.find({ userId });
+        const dues = await Dues.find({ userId })
+            .populate('customerId', 'name contactNo email place status')
+            .sort({ createdAt: -1 })
+            .lean();
         res.status(200).json({ dues });
     } catch (error) {
         res.status(500).json({ message: 'Error fetching dues', error: error.message });
@@ -60,11 +86,28 @@ exports.getDuesByUser = async (req, res) => {
 // Update due status (PAID)
 exports.updatedueStatus = async (req,res) =>{
     try{
+        const freshDue = await Dues.findOne({ _id: req.params.dueId, userId: req.user._id }).lean();
+        if (!freshDue) {
+            return res.status(404).json({ message: 'Due not found' });
+        }
+
+        const currentAmount = Number(freshDue.amount || 0);
+        const originalAmount = Number(freshDue.metadata?.originalAmount || currentAmount);
+        const prevPaid = Number(freshDue.metadata?.totalPaid || 0);
+
         const due = await Dues.findOneAndUpdate(
             { _id: req.params.dueId, userId: req.user._id },
-            { status: "PAID", snoozeDate: null },
+            {
+                amount: 0,
+                status: "PAID",
+                snoozeDate: null,
+                'metadata.originalAmount': originalAmount,
+                'metadata.totalPaid': Math.round((prevPaid + currentAmount) * 100) / 100,
+                'metadata.lastPaymentDate': new Date(),
+                $push: { 'metadata.payments': { amount: currentAmount, date: new Date(), status: 'COMPLETED' } }
+            },
             { new: true }
-        );
+        ).populate('customerId', 'name contactNo email place status').lean();
 
         if (!due) {
             return res.status(404).json({ message: 'Due not found' });

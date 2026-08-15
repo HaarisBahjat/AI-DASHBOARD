@@ -681,13 +681,67 @@ function VoiceChat({ onLogout, profile }) {
       totalMessages: conversations.reduce((acc, conv) => acc + (conv.messages?.length || 0), 0),
     };
 
+    // ── Contact Exposure Breakdown (Multiple Dues per Contact) ──
+    const contactBreakdown = (customers || []).map((c) => {
+      const safeName = c.name ? c.name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&') : '';
+      const nameRegex = safeName ? new RegExp(safeName, 'i') : null;
+
+      const custDues = dues.filter((d) => {
+        const cId = d.customerId?._id || d.customerId;
+        if (cId && String(cId) === String(c._id)) return true;
+        if (!cId && nameRegex && nameRegex.test(d.title || '')) return true;
+        return false;
+      });
+
+      const activeDues = custDues.filter((d) => normalizeDueStatus(d.status) !== 'PAID');
+      const paidDues = custDues.filter((d) => normalizeDueStatus(d.status) === 'PAID');
+      const totalDue = activeDues.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+      const paidAmount = custDues.reduce((sum, d) => {
+        const dPaid = Number(d.metadata?.totalPaid);
+        if (Number.isFinite(dPaid) && dPaid > 0) return sum + dPaid;
+        return normalizeDueStatus(d.status) === 'PAID' ? sum + (Number(d.amount) || 0) : sum;
+      }, 0);
+
+      const worstBucket = activeDues.reduce((worst, d) => {
+        const dDate = d.dueDate ? new Date(d.dueDate) : null;
+        if (!dDate) return worst;
+        const dCopy = new Date(dDate);
+        dCopy.setHours(0, 0, 0, 0);
+        const diff = Math.floor((today - dCopy) / (1000 * 60 * 60 * 24));
+        let bucket = 'current';
+        if (diff > 90) bucket = '90+';
+        else if (diff > 60) bucket = '61-90';
+        else if (diff > 30) bucket = '31-60';
+        else if (diff > 0) bucket = '0-30';
+
+        const order = { 'current': 0, '0-30': 1, '31-60': 2, '61-90': 3, '90+': 4 };
+        return (order[bucket] > order[worst]) ? bucket : worst;
+      }, 'current');
+
+      return {
+        customer: c,
+        totalDuesCount: custDues.length,
+        activeDuesCount: activeDues.length,
+        paidDuesCount: paidDues.length,
+        totalDue: Math.round(totalDue * 100) / 100,
+        paidAmount: Math.round(paidAmount * 100) / 100,
+        worstBucket,
+        dues: custDues,
+      };
+    });
+
+    contactBreakdown.sort((a, b) => b.totalDue - a.totalDue);
+    const multiDueContacts = contactBreakdown.filter(cb => cb.totalDuesCount > 1);
+
     return {
       duesCount: dues.length,
       totals,
       topOverdue,
       conversationTotals,
+      contactBreakdown,
+      multiDueContacts,
     };
-  }, [dues, billThreads.length, conversations]);
+  }, [dues, billThreads.length, conversations, customers]);
 
   const billStatusChartData = useMemo(() => ({
     labels: ['Paid', 'Unpaid', 'Overdue'],
@@ -737,7 +791,7 @@ function VoiceChat({ onLogout, profile }) {
       },
     },
   }), []);
-// Cron job trigger handler to create reminders and inject voice messages via sockets. This allows users to receive TTS reminders in the correct conversation threads even if they were created by the cron and not by user interactions.
+
   const finance = useMemo(() => {
     const now = new Date();
     const monthKey = getMonthKey(now);
@@ -763,7 +817,7 @@ function VoiceChat({ onLogout, profile }) {
 
     const recentTransactions = [];
     const monthlyCollections = new Map();
-// Initialize last 6 months for the monthly collections chart.
+
     for (let i = 5; i >= 0; i -= 1) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = getMonthKey(d);
@@ -773,7 +827,7 @@ function VoiceChat({ onLogout, profile }) {
         amount: 0,
       });
     }
-// Iterate through dues to populate all analytics sections.
+
     dues.forEach((due) => {
       const amount = Number(due?.amount) || 0;
       const status = normalizeDueStatus(due?.status);
@@ -816,7 +870,7 @@ function VoiceChat({ onLogout, profile }) {
         aging.current.amount += amount;
         return;
       }
-// Calculate aging buckets based on how many days past due the invoice is.
+
       const dayDiff = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
 
       if (dayDiff <= 30) {
@@ -835,7 +889,7 @@ function VoiceChat({ onLogout, profile }) {
 
     const monthlySeries = Array.from(monthlyCollections.values());
     const monthlyMax = monthlySeries.reduce((max, item) => Math.max(max, item.amount), 0);
-// Handler for cron-triggered reminders to emit socket events with TTS audio and system messages in the correct conversation threads.
+
     const paymentMethods = [
       {
         id: 'stripe',
@@ -857,6 +911,31 @@ function VoiceChat({ onLogout, profile }) {
       },
     ];
 
+    // Top Contact Exposures in Finance (multiple dues grouped by contact)
+    const topContactExposures = (customers || [])
+      .map((c) => {
+        const safeName = c.name ? c.name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&') : '';
+        const nameRegex = safeName ? new RegExp(safeName, 'i') : null;
+        const custDues = dues.filter((d) => {
+          const cId = d.customerId?._id || d.customerId;
+          if (cId && String(cId) === String(c._id)) return true;
+          if (!cId && nameRegex && nameRegex.test(d.title || '')) return true;
+          return false;
+        });
+        const activeDues = custDues.filter((d) => normalizeDueStatus(d.status) !== 'PAID');
+        const outstanding = activeDues.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+        return {
+          id: c._id,
+          name: c.name,
+          contactNo: c.contactNo,
+          invoicesCount: custDues.length,
+          activeInvoicesCount: activeDues.length,
+          outstanding: Math.round(outstanding * 100) / 100,
+        };
+      })
+      .filter((c) => c.invoicesCount > 0)
+      .sort((a, b) => b.outstanding - a.outstanding);
+
     return {
       summary,
       aging,
@@ -864,33 +943,48 @@ function VoiceChat({ onLogout, profile }) {
       paymentMethods,
       monthlySeries,
       monthlyMax,
+      topContactExposures,
     };
-  }, [dues]);
+  }, [dues, customers]);
 
   const financeActionRows = useMemo(() => {
     const rows = dues
       .filter((due) => normalizeDueStatus(due?.status) !== 'PAID')
-      .map((due) => ({
-        id: due?._id,
-        title: due?.title || 'Untitled Due',
-        amount: Number(due?.amount) || 0,
-        status: normalizeDueStatus(due?.status),
-        dueDate: due?.dueDate || null,
-        snoozeDate: due?.snoozeDate || null,
-        // Carry metadata flags so PTP / VERIFYING badges can render
-        metadata: due?.metadata || {},
-      }))
+      .map((due) => {
+        let customerObj = due?.customerId && typeof due.customerId === 'object' ? due.customerId : null;
+        if (!customerObj && due?.customerId) {
+          customerObj = customers.find((c) => String(c._id) === String(due.customerId)) || null;
+        }
+        if (!customerObj) {
+          const safeName = (c) => (c.name ? c.name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&') : '');
+          const matchedCust = customers.find((c) => c.name && due?.title && new RegExp(safeName(c), 'i').test(due.title));
+          if (matchedCust) customerObj = matchedCust;
+        }
+
+        return {
+          id: due?._id,
+          title: due?.title || 'Untitled Due',
+          amount: Number(due?.amount) || 0,
+          status: normalizeDueStatus(due?.status),
+          dueDate: due?.dueDate || null,
+          snoozeDate: due?.snoozeDate || null,
+          customer: customerObj,
+          customerName: customerObj?.name || null,
+          customerId: customerObj?._id || null,
+          invoiceNo: due?.invoiceNo || null,
+          metadata: due?.metadata || {},
+        };
+      })
       .sort((a, b) => {
-        // PTP and VERIFYING sort just below OVERDUE
-        const priority = (s) => s === 'OVERDUE' ? 0 : (s === 'PTP' || s === 'VERIFYING') ? 1 : 2;
+        const priority = (s) => (s === 'OVERDUE' ? 0 : (s === 'PTP' || s === 'VERIFYING') ? 1 : 2);
         if (priority(a.status) !== priority(b.status)) return priority(a.status) - priority(b.status);
         const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
         const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
         return aDate - bDate;
       });
 
-    return rows.slice(0, 10);
-  }, [dues]);
+    return rows.slice(0, 15);
+  }, [dues, customers]);
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -1918,7 +2012,7 @@ function VoiceChat({ onLogout, profile }) {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(148,163,184,0.15)' }}>
-                      {['Customer Name','Contact No','Place','Amount Due','Ageing','Status','Action'].map(h => (
+                      {['Customer Name','Contact No','Place','Invoices & Due','Ageing','Status','Action'].map(h => (
                         <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
@@ -1936,7 +2030,7 @@ function VoiceChat({ onLogout, profile }) {
                             onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.06)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                           >
-                            <td style={{ padding: '12px 14px', fontWeight: 600, color: '#e2e8f0' }}>
+                            <td style={{ padding: '12px 14px', fontWeight: 600, color: '#e2e8f0' }} onClick={() => openCustomerDrawer(c._id)}>
                               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
                                   {c.name?.[0]?.toUpperCase() || '?'}
@@ -1946,8 +2040,13 @@ function VoiceChat({ onLogout, profile }) {
                             </td>
                             <td style={{ padding: '12px 14px', color: '#94a3b8' }}>{c.contactNo || '—'}</td>
                             <td style={{ padding: '12px 14px', color: '#94a3b8' }}>{c.place || '—'}</td>
-                            <td style={{ padding: '12px 14px', fontWeight: 600, color: c.totalDue > 0 ? '#f87171' : '#22c55e' }}>
-                              {formatCurrency(c.totalDue || 0)}
+                            <td style={{ padding: '12px 14px' }} onClick={() => openCustomerDrawer(c._id)}>
+                              <div style={{ fontWeight: 700, color: c.totalDue > 0 ? '#f87171' : '#22c55e' }}>
+                                {formatCurrency(c.totalDue || 0)}
+                              </div>
+                              <div style={{ fontSize: 11, color: '#818cf8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <span>📋 {c.invoiceCount || 0} {c.invoiceCount === 1 ? 'due' : 'dues'}</span>
+                              </div>
                             </td>
                             <td style={{ padding: '12px 14px' }}>
                               <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: agingColor[c.agingBucket || 'current'] + '22', color: agingColor[c.agingBucket || 'current'] }}>
@@ -1959,21 +2058,31 @@ function VoiceChat({ onLogout, profile }) {
                                 {c.status}
                               </span>
                             </td>
-                              <td style={{ padding: '12px 14px' }}>
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                  <button
-                                    id={`contacts-view-btn-${c._id}`}
-                                    onClick={() => openCustomerDrawer(c._id)}
-                                    style={{ fontSize: 11, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.1)', color: '#818cf8', cursor: 'pointer', fontWeight: 600 }}
-                                  >View</button>
-                                  <button
-                                    id={`contacts-edit-btn-${c._id}`}
-                                    onClick={() => openEditCustomerModal(c)}
-                                    style={{ fontSize: 11, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(148,163,184,0.3)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}
-                                  >Edit</button>
-                                  <button
-                                    id={`contacts-followup-btn-${c._id}`}
-                                    onClick={async () => {
+                            <td style={{ padding: '12px 14px' }}>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button
+                                  id={`contacts-view-btn-${c._id}`}
+                                  onClick={() => openCustomerDrawer(c._id)}
+                                  style={{ fontSize: 11, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.1)', color: '#818cf8', cursor: 'pointer', fontWeight: 600 }}
+                                >View</button>
+                                <button
+                                  id={`contacts-add-due-btn-${c._id}`}
+                                  onClick={() => {
+                                    setSelectedCustomerId(c._id);
+                                    setNewInvoiceForm({ title: '', amount: '', dueDate: '', invoiceNo: '' });
+                                    setShowAddInvoiceModal(true);
+                                  }}
+                                  style={{ fontSize: 11, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.1)', color: '#22c55e', cursor: 'pointer', fontWeight: 600 }}
+                                  title="Add a new invoice for this contact"
+                                >+ Due</button>
+                                <button
+                                  id={`contacts-edit-btn-${c._id}`}
+                                  onClick={() => openEditCustomerModal(c)}
+                                  style={{ fontSize: 11, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(148,163,184,0.3)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}
+                                >Edit</button>
+                                <button
+                                  id={`contacts-followup-btn-${c._id}`}
+                                  onClick={async () => {
                                     const token = localStorage.getItem('authToken');
                                     if (!token) return;
                                     try {
@@ -2334,6 +2443,49 @@ function VoiceChat({ onLogout, profile }) {
                   </div>
                 </div>
               </section>
+
+              {/* ── Customer Dues Exposure (Multiple Invoices per Contact) ── */}
+              <section className="finance-card glass-panel rounded-xl" style={{ gridColumn: '1 / -1' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                  <h3 style={{ margin: 0 }}>Customer Dues Exposure</h3>
+                  <span style={{ fontSize: 12, color: '#818cf8', fontWeight: 600 }}>
+                    {finance.topContactExposures.length} contacts with active dues
+                  </span>
+                </div>
+                {finance.topContactExposures.length === 0 ? (
+                  <p className="finance-empty">No contacts with active dues right now.</p>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+                    {finance.topContactExposures.slice(0, 8).map((ce) => (
+                      <div
+                        key={ce.id}
+                        onClick={() => openCustomerDrawer(ce.id)}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'rgba(30,41,59,0.5)', borderRadius: 10, border: '1px solid rgba(148,163,184,0.12)', cursor: 'pointer', transition: 'all 0.2s' }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(99,102,241,0.5)'}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(148,163,184,0.12)'}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600, color: '#e2e8f0', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>{ce.name}</span>
+                            <span style={{ fontSize: 10, background: 'rgba(99,102,241,0.2)', color: '#818cf8', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>
+                              {ce.invoicesCount} {ce.invoicesCount === 1 ? 'due' : 'dues'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                            {ce.activeInvoicesCount} active · {ce.contactNo || 'No contact no'}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: ce.outstanding > 0 ? '#f87171' : '#4ade80' }}>
+                            {formatCurrency(ce.outstanding)}
+                          </div>
+                          <div style={{ fontSize: 10, color: '#818cf8', marginTop: 2 }}>View Invoices →</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
 
             <section className="finance-actions-card glass-panel rounded-xl">
@@ -2366,7 +2518,33 @@ function VoiceChat({ onLogout, profile }) {
                       <article key={item.id} className={`finance-action-row hover:bg-surface-container-low dark:hover:bg-surface-container-low-dark transition-colors duration-200${isPtp ? ' ptp-row' : ''}${isVerifying ? ' verifying-row' : ''}`}>
                         <div className="finance-action-main">
                           <h4>
+                            {item.customerName && (
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (item.customerId) openCustomerDrawer(item.customerId);
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  background: 'rgba(99,102,241,0.15)',
+                                  color: '#818cf8',
+                                  border: '1px solid rgba(99,102,241,0.3)',
+                                  padding: '2px 8px',
+                                  borderRadius: 6,
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  marginRight: 8,
+                                  cursor: item.customerId ? 'pointer' : 'default'
+                                }}
+                                title={item.customerId ? 'Click to view contact activity and multiple dues' : ''}
+                              >
+                                👤 {item.customerName}
+                              </span>
+                            )}
                             {item.title}
+                            {item.invoiceNo && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 6 }}>#{item.invoiceNo}</span>}
                             {isPtp && (
                               <span className="ptp-badge" title="User promised to pay via voice call — not yet confirmed">
                                 ⏳ Promised for Today
@@ -2380,6 +2558,7 @@ function VoiceChat({ onLogout, profile }) {
                           </h4>
                           <p>
                             {formatCurrency(item.amount)} • Due {formatDate(item.dueDate)}
+                            {item.customer?.contactNo && ` • 📞 ${item.customer.contactNo}`}
                             {isPtp && ` • AI heard promise on ${ptpDate} — will follow up if unpaid`}
                             {isVerifying && ` • User claimed paid on ${claimedDate} — please check your bank`}
                             {!isPtp && !isVerifying && item.snoozeDate ? ` • Snoozed until ${formatDate(item.snoozeDate)}` : ''}
@@ -2492,7 +2671,7 @@ function VoiceChat({ onLogout, profile }) {
           <div className="analytics-dashboard glass-panel rounded-2xl shadow-xl">
             <div className="analytics-head">
               <h2>Analytics</h2>
-              <p>{isAnalyticsLoading ? 'Refreshing metrics...' : 'Live overview of dues and voice collections.'}</p>
+              <p>{isAnalyticsLoading ? 'Refreshing metrics...' : 'Live overview of dues, contacts, and voice collections.'}</p>
             </div>
 
             <div className="analytics-kpis">
@@ -2561,6 +2740,92 @@ function VoiceChat({ onLogout, profile }) {
                     <strong>{formatDays(analytics.totals.avgPaymentDelayDays)}</strong>
                   </div>
                 </div>
+              </section>
+
+              {/* ── Contact Invoices & Exposure Breakdown (Multiple Dues per Contact) ── */}
+              <section className="analytics-card glass-panel rounded-xl" style={{ gridColumn: 'span 12' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <h3 style={{ margin: 0 }}>Contact Dues & Risk Exposure</h3>
+                    <p style={{ margin: '4px 0 0', fontSize: 12, color: '#94a3b8' }}>
+                      Consolidated breakdown of multiple dues, collections, and aging per contact.
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'rgba(99,102,241,0.15)', color: '#818cf8', fontWeight: 600 }}>
+                      {analytics.contactBreakdown.length} Contacts Tracked
+                    </span>
+                    <span style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'rgba(168,85,247,0.15)', color: '#c084fc', fontWeight: 600 }}>
+                      {analytics.multiDueContacts.length} with Multiple Dues
+                    </span>
+                  </div>
+                </div>
+
+                {analytics.contactBreakdown.length === 0 ? (
+                  <p className="analytics-empty">No contact due information available yet.</p>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(148,163,184,0.15)' }}>
+                          {['Contact Name', 'Phone / Email', 'Total Dues', 'Outstanding', 'Collected', 'Aging Risk', 'Actions'].map((h) => (
+                            <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analytics.contactBreakdown.map((item) => {
+                          const agingColor = { current: '#22c55e', '0-30': '#f59e0b', '31-60': '#f97316', '61-90': '#ef4444', '90+': '#7f1d1d' };
+                          return (
+                            <tr
+                              key={item.customer._id}
+                              style={{ borderBottom: '1px solid rgba(148,163,184,0.08)', transition: 'background 0.15s', cursor: 'pointer' }}
+                              onClick={() => openCustomerDrawer(item.customer._id)}
+                              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99,102,241,0.06)'}
+                              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <td style={{ padding: '10px 12px', fontWeight: 600, color: '#e2e8f0' }}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8', fontWeight: 700, fontSize: 12 }}>
+                                    {item.customer.name?.[0]?.toUpperCase() || '?'}
+                                  </span>
+                                  {item.customer.name}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 12px', color: '#94a3b8' }}>
+                                {item.customer.contactNo || item.customer.email || '—'}
+                              </td>
+                              <td style={{ padding: '10px 12px' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: item.totalDuesCount > 1 ? 'rgba(168,85,247,0.15)' : 'rgba(99,102,241,0.1)', color: item.totalDuesCount > 1 ? '#c084fc' : '#818cf8', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                                  📋 {item.totalDuesCount} {item.totalDuesCount === 1 ? 'due' : 'dues'} ({item.activeDuesCount} active)
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 12px', fontWeight: 700, color: item.totalDue > 0 ? '#f87171' : '#22c55e' }}>
+                                {formatCurrency(item.totalDue)}
+                              </td>
+                              <td style={{ padding: '10px 12px', fontWeight: 600, color: '#4ade80' }}>
+                                {formatCurrency(item.paidAmount)}
+                              </td>
+                              <td style={{ padding: '10px 12px' }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: (agingColor[item.worstBucket || 'current'] || '#22c55e') + '22', color: agingColor[item.worstBucket || 'current'] || '#22c55e' }}>
+                                  {item.worstBucket || 'Current'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 12px' }}>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); openCustomerDrawer(item.customer._id); }}
+                                  style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.1)', color: '#818cf8', cursor: 'pointer', fontWeight: 600 }}
+                                >
+                                  View All Dues →
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </section>
 
               <section className="analytics-card overdue-list-card glass-panel rounded-xl">
