@@ -269,19 +269,44 @@ exports.getCustomerActivity = async (req, res) => {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
-    // Get ALL invoices for this customer (all statuses)
+    const safeName = customer.name ? customer.name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&') : '';
+    const nameRegex = safeName ? new RegExp(safeName, 'i') : null;
+
+    // Get ALL invoices for this customer (matched by customerId OR matching title if customerId was not set)
     const dues = await Dues.find({
-      customerId: req.params.id,
       userId: req.user._id,
+      $or: [
+        { customerId: req.params.id },
+        ...(nameRegex ? [{ customerId: null, title: nameRegex }] : []),
+      ],
     })
       .sort({ dueDate: 1 })
       .lean();
 
-    // Enrich each due with live ageing bucket
-    const enrichedDues = dues.map((due) => ({
-      ...due,
-      agingBucket: computeAgingBucket(due.dueDate),
-    }));
+    // Auto-heal / backfill customerId on any matched unlinked dues
+    const unlinkedDueIds = dues.filter((d) => !d.customerId).map((d) => d._id);
+    if (unlinkedDueIds.length > 0) {
+      await Dues.updateMany(
+        { _id: { $in: unlinkedDueIds } },
+        { customerId: customer._id }
+      );
+    }
+
+    // Enrich each due with live ageing bucket and accurate displayAmount
+    const enrichedDues = dues.map((due) => {
+      const currentOutstanding = Number(due.amount) || 0;
+      const totalPaidOnDue = Number(due.metadata?.totalPaid || 0);
+      const originalAmount = Number(due.metadata?.originalAmount || (due.status === 'PAID' ? totalPaidOnDue : currentOutstanding + totalPaidOnDue));
+      const displayAmount = due.status === 'PAID' ? (originalAmount || totalPaidOnDue || currentOutstanding) : currentOutstanding;
+
+      return {
+        ...due,
+        displayAmount,
+        originalAmount,
+        totalPaid: totalPaidOnDue,
+        agingBucket: computeAgingBucket(due.dueDate),
+      };
+    });
 
     // Summary
     const summary = enrichedDues.reduce(

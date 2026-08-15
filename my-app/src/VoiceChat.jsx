@@ -2310,7 +2310,14 @@ function VoiceChat({ onLogout, profile }) {
                                     </div>
                                   </div>
                                   <div style={{ textAlign: 'right' }}>
-                                    <div style={{ fontWeight: 700, fontSize: 14, color: due.status === 'PAID' ? '#4ade80' : '#f87171' }}>{formatCurrency(due.amount)}</div>
+                                    <div style={{ fontWeight: 700, fontSize: 14, color: due.status === 'PAID' ? '#4ade80' : '#f87171' }}>
+                                      {formatCurrency(due.status === 'PAID' ? (due.displayAmount || due.metadata?.originalAmount || due.metadata?.totalPaid || due.amount) : due.amount)}
+                                    </div>
+                                    {due.status !== 'PAID' && due.metadata?.totalPaid > 0 && (
+                                      <div style={{ fontSize: 10, color: '#4ade80', marginTop: 1 }}>
+                                        {formatCurrency(due.metadata.totalPaid)} paid
+                                      </div>
+                                    )}
                                     <div style={{ display: 'flex', gap: 4, marginTop: 4, justifyContent: 'flex-end' }}>
                                       <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: (statusColor[due.status] || '#94a3b8') + '22', color: statusColor[due.status] || '#94a3b8' }}>
                                         {due.status}
