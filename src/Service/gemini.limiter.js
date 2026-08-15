@@ -116,14 +116,16 @@ exports.callGemini = async (payload, options = {}) => {
         } catch (err) {
             lastErr = err;
             const status = err.response?.status;
+            const isTimeout = err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT' || (err.message && err.message.toLowerCase().includes('timeout'));
+            const isRetryable = status === 429 || status === 503 || status === 500 || status === 502 || status === 504 || isTimeout;
 
-            if (status === 429) {
+            if (isRetryable) {
                 // Exponential backoff: 2s, 4s, 8s (+random 0-800ms)
                 const base  = Math.pow(2, attempt + 1) * 1000;
                 const jitter = Math.random() * 800;
                 const delay  = base + jitter;
                 console.warn(
-                    `[Gemini Limiter] 429 received. ` +
+                    `[Gemini Limiter] Retryable issue (HTTP ${status || 'timeout'}) received. ` +
                     `Attempt ${attempt + 1}/${MAX_RETRIES}. ` +
                     `Retrying in ${Math.round(delay)}ms…`
                 );

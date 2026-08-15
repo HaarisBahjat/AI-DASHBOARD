@@ -28,11 +28,11 @@ const INTENT_TOOLS = [
         parameters: {
           type: 'OBJECT',
           properties: {
-            customerName: { type: 'STRING', description: 'Name of the customer/business this due belongs to. Leave empty if not mentioned.' },
-            title:        { type: 'STRING', description: 'Short bill/invoice title, e.g. Rent, Electricity, Entertainment. Do NOT put customer name here.' },
+            customerName: { type: 'STRING', description: 'Name of the customer or business this due belongs to (e.g. "Rahul", "Sharma Traders"). Leave empty if not mentioned.' },
+            title:        { type: 'STRING', description: 'Bill or invoice title describing the item/service (e.g. "Rent", "Electricity", "Consulting"). Never put the customer name here.' },
             description:  { type: 'STRING', description: 'Optional extra description of the bill.' },
-            amount:       { type: 'NUMBER', description: 'Amount in rupees as a positive number.' },
-            dueDate:      { type: 'STRING', description: 'Due date in YYYY-MM-DD format. Resolve relative dates like "tomorrow" from today.' },
+            amount:       { type: 'NUMBER', description: 'Total numerical bill amount in rupees as a positive number (e.g. 5000).' },
+            dueDate:      { type: 'STRING', description: 'Due date in YYYY-MM-DD format. Resolve relative dates like "tomorrow" or "next Friday" from today.' },
             category:     { type: 'STRING', description: 'Category: utilities | shopping | food | entertainment | general. Default: general.' },
           },
           required: ['title', 'amount', 'dueDate'],
@@ -47,7 +47,7 @@ const INTENT_TOOLS = [
             dueId:        { type: 'STRING', description: 'MongoDB _id of the due to update, if known.' },
             customerName: { type: 'STRING', description: 'Customer name to look up the due if dueId is unknown.' },
             title:        { type: 'STRING', description: 'New title for the due.' },
-            amount:       { type: 'NUMBER', description: 'New amount in rupees.' },
+            amount:       { type: 'NUMBER', description: 'New exact amount in rupees.' },
             dueDate:      { type: 'STRING', description: 'New due date in YYYY-MM-DD format.' },
             category:     { type: 'STRING', description: 'New category.' },
           },
@@ -68,19 +68,19 @@ const INTENT_TOOLS = [
       },
       {
         name: 'list_dues',
-        description: 'List dues/invoices. Can filter by customer name or status.',
+        description: 'List dues or invoices. Can filter by customer name or status.',
         parameters: {
           type: 'OBJECT',
           properties: {
             customerName:  { type: 'STRING', description: 'Filter dues for a specific customer name.' },
-            statusFilter:  { type: 'STRING', description: 'Filter by status: unpaid | overdue | paid | all. Default: all.' },
+            statusFilter:  { type: 'STRING', description: 'Filter by status: unpaid | overdue | paid | all. Default: unpaid.' },
           },
           required: [],
         },
       },
       {
         name: 'sum_dues',
-        description: 'Get the total outstanding balance of all unpaid dues.',
+        description: 'Calculate the total sum/balance of all active outstanding dues.',
         parameters: { type: 'OBJECT', properties: {}, required: [] },
       },
       {
@@ -96,7 +96,7 @@ const INTENT_TOOLS = [
       },
       {
         name: 'get_customer_info',
-        description: 'Get details about a specific customer including outstanding invoices.',
+        description: 'Get details about a specific customer including outstanding invoices and balance.',
         parameters: {
           type: 'OBJECT',
           properties: {
@@ -107,7 +107,7 @@ const INTENT_TOOLS = [
       },
       {
         name: 'list_customers',
-        description: 'List all customer contacts.',
+        description: 'List all customer contacts and their balances.',
         parameters: { type: 'OBJECT', properties: {}, required: [] },
       },
       {
@@ -123,13 +123,13 @@ const INTENT_TOOLS = [
       },
       {
         name: 'confirm_paid',
-        description: 'Record that a customer has paid a bill — fully or partially.',
+        description: 'Record that a customer has paid a bill — either full payment or a partial installment amount.',
         parameters: {
           type: 'OBJECT',
           properties: {
-            customerName:  { type: 'STRING', description: 'Name of the customer who paid. Optional if context is clear.' },
-            dueTitle:      { type: 'STRING', description: 'Title of the specific bill being paid. Optional if only one unpaid bill exists.' },
-            paymentAmount: { type: 'NUMBER', description: 'Amount paid in rupees. If the full amount was paid, leave null.' },
+            customerName:  { type: 'STRING', description: 'Name of the customer who made the payment. Optional if clear from context.' },
+            dueTitle:      { type: 'STRING', description: 'Title of the specific bill/invoice being paid (e.g. "Rent", "Electricity").' },
+            paymentAmount: { type: 'NUMBER', description: 'The exact numerical amount PAID in this transaction in rupees (e.g. 2000). If the entire bill is paid in full without partial amount, leave null.' },
           },
           required: [],
         },
@@ -141,7 +141,7 @@ const INTENT_TOOLS = [
       },
       {
         name: 'general_chat',
-        description: 'Fallback for any message that does not match a specific financial action.',
+        description: 'Fallback for any general conversational message or greetings.',
         parameters: { type: 'OBJECT', properties: {}, required: [] },
       },
     ],
@@ -157,14 +157,27 @@ const INTENT_TOOLS = [
 // Returns: { intent, customerName?, title?, amount?, dueDate?, ... }
 // ─────────────────────────────────────────────────────────────────────────────
 exports.detectIntent = async (text) => {
-  const systemPrompt = `You are an intent detection assistant for a Dues Reminder app.
+  const systemPrompt = `You are a precise financial intent detection assistant for a Dues and Invoices Reminder app.
 Today's date: ${new Date().toISOString().split('T')[0]}
 
-Rules:
-- Resolve relative dates like "tomorrow" or "next Monday" to YYYY-MM-DD.
-- NEVER confuse customerName with title. A customer name is a person/business; a title is a bill description.
-- For "confirm_paid": extract paymentAmount only if the user explicitly states how much they paid.
-- If unclear, default to general_chat.`;
+STRICT EXTRACTION RULES:
+1. NUMBERS & AMOUNTS:
+   - Extract exact numbers as positive numbers (e.g. "5000", "2000.50").
+   - For "confirm_paid": extract "paymentAmount" as the actual money paid/given by the user in this payment.
+   - For "create_due": extract "amount" as the total bill amount.
+2. CUSTOMER VS TITLE:
+   - "customerName" is always the person or company name (e.g., "for Rahul" -> customerName: "Rahul").
+   - "title" is the item, invoice, or service (e.g., "Rent bill", "Electricity", "Invoice #101").
+   - NEVER confuse customer name with title.
+3. DATES:
+   - Resolve relative dates like "tomorrow", "next Monday", "in 3 days" to exact YYYY-MM-DD.
+4. INTENT CLASSIFICATION:
+   - If user claims they paid, settled, or made a partial payment -> call "confirm_paid".
+   - If user asks how much they owe in total -> call "sum_dues".
+   - If user asks for list of invoices/bills -> call "list_dues".
+   - If user asks about a customer's balance -> call "get_customer_info".
+   - If user wants to create a new invoice -> call "create_due".
+   - Default to "general_chat" if none apply.`;
 
   try {
     const response = await callGeminiWithTools(
@@ -180,17 +193,15 @@ Rules:
     const fnCall = extractFunctionCall(response);
 
     if (!fnCall) {
-      // Gemini returned text instead of a function call (should not happen with mode: ANY, but safe fallback)
       console.warn('[detectIntent] No function call returned by Gemini. Falling back to general_chat.');
       return { intent: 'general_chat' };
     }
 
-    const intent = fnCall.name; // e.g. 'create_due', 'confirm_paid'
-    const args   = fnCall.args; // already typed — no JSON.parse needed
+    const intent = fnCall.name;
+    const args   = fnCall.args;
 
     console.log('[LLM] Function call:', intent, args);
 
-    // Normalize: ensure intent field is present and lowercase
     return { intent, ...args };
 
   } catch (err) {

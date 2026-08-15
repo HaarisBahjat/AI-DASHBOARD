@@ -35,15 +35,16 @@ async function actionDispatcherNode(state) {
       } else if (negotiationOutcome === 'PAID') {
         const freshDue = await Dues.findById(due._id).lean();
         const currentAmount = freshDue ? Number(freshDue.amount || 0) : Number(due.amount || 0);
-        const originalAmount = (freshDue && freshDue.metadata && freshDue.metadata.originalAmount) ? freshDue.metadata.originalAmount : currentAmount;
+        const originalAmount = Number(freshDue?.metadata?.originalAmount || currentAmount);
         const prevPaid = Number(freshDue?.metadata?.totalPaid || 0);
         const paymentRecord = { amount: currentAmount, date: new Date(), status: 'COMPLETED' };
 
         await Dues.findByIdAndUpdate(due._id, {
+          amount: 0,
           status: 'PAID',
           ...(customer && !freshDue?.customerId ? { customerId: customer._id } : {}),
           'metadata.originalAmount': originalAmount,
-          'metadata.totalPaid': prevPaid + currentAmount,
+          'metadata.totalPaid': Math.round((prevPaid + currentAmount) * 100) / 100,
           'metadata.lastPaymentDate': new Date(),
           $push: { 'metadata.payments': paymentRecord }
         });
@@ -56,10 +57,10 @@ async function actionDispatcherNode(state) {
         const freshDue = await Dues.findById(due._id).lean();
         const currentAmount = freshDue ? Number(freshDue.amount || 0) : Number(due.amount || 0);
         const paymentAmount = (intentData && intentData.paymentAmount) ? Number(intentData.paymentAmount) : 0;
-        const remainingAmount = Math.max(0, currentAmount - paymentAmount);
+        const remainingAmount = Math.max(0, Math.round((currentAmount - paymentAmount) * 100) / 100);
         const isFullyPaid = remainingAmount === 0;
 
-        const originalAmount = (freshDue && freshDue.metadata && freshDue.metadata.originalAmount) ? freshDue.metadata.originalAmount : currentAmount;
+        const originalAmount = Number(freshDue?.metadata?.originalAmount || currentAmount);
         const prevPaid = Number(freshDue?.metadata?.totalPaid || 0);
         const paymentRecord = { amount: paymentAmount, date: new Date(), status: 'COMPLETED' };
 
@@ -70,7 +71,7 @@ async function actionDispatcherNode(state) {
             status: isFullyPaid ? 'PAID' : 'UNPAID',
             ...(customer && !freshDue?.customerId ? { customerId: customer._id } : {}),
             'metadata.originalAmount': originalAmount,
-            'metadata.totalPaid': prevPaid + paymentAmount,
+            'metadata.totalPaid': Math.round((prevPaid + paymentAmount) * 100) / 100,
             'metadata.lastPaymentDate': new Date(),
             $push: { 'metadata.payments': paymentRecord }
           }

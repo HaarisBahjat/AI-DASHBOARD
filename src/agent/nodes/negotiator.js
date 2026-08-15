@@ -27,15 +27,18 @@ async function negotiatorNode(state) {
     const textLower = (userText || '').toLowerCase();
 
     // Check if user specifically requested UNPAID, OVERDUE, or PAID status
-    if (textLower.includes('unpaid') || textLower.includes('pending')) {
-      filter.status = { $in: ['UNPAID', 'OVERDUE'] };
-      statusLabel = ' unpaid';
-    } else if (textLower.includes('overdue')) {
-      filter.status = 'OVERDUE';
-      statusLabel = ' overdue';
+    if (textLower.includes('all')) {
+      statusLabel = ' (all statuses)';
     } else if (textLower.includes('paid') && !textLower.includes('unpaid')) {
       filter.status = 'PAID';
       statusLabel = ' paid';
+    } else if (textLower.includes('overdue')) {
+      filter.status = 'OVERDUE';
+      statusLabel = ' overdue';
+    } else {
+      // Default: show active outstanding dues (UNPAID, OVERDUE, PTP, VERIFYING)
+      filter.status = { $in: ['UNPAID', 'OVERDUE', 'PTP', 'VERIFYING'] };
+      statusLabel = ' outstanding';
     }
 
     let label = '';
@@ -60,9 +63,9 @@ async function negotiatorNode(state) {
     if (!dues.length) {
       return { replyText: 'No' + statusLabel + ' dues found' + label + '.', negotiationOutcome: 'GENERAL_REPLY', nextStep: 'dispatch' };
     }
-    const total = dues.reduce((s, d) => s + (d.amount || 0), 0);
+    const total = dues.reduce((s, d) => s + (Number(d.amount) || 0), 0);
     const lines = dues.slice(0, 5).map((d, i) =>
-      (i + 1) + '. ' + d.title + ': Rs.' + d.amount + ' (Due ' + new Date(d.dueDate).toLocaleDateString() + ') [' + d.status + ']'
+      (i + 1) + '. ' + d.title + ': Rs.' + Number(d.amount).toFixed(2) + ' (Due ' + new Date(d.dueDate).toLocaleDateString() + ') [' + d.status + ']'
     ).join('; ');
     return {
       replyText: 'Found ' + dues.length + statusLabel + ' due(s)' + label + ' totalling Rs.' + total.toFixed(2) + ': ' + lines,
@@ -73,10 +76,10 @@ async function negotiatorNode(state) {
 
   // ── SUM DUES ───────────────────────────────────────────────────────────────
   if (intent === 'sum_dues') {
-    const dues = await Dues.find({ userId, status: { $in: ['UNPAID', 'OVERDUE'] } }).lean();
-    const total = dues.reduce((s, d) => s + (d.amount || 0), 0);
+    const dues = await Dues.find({ userId, status: { $in: ['UNPAID', 'OVERDUE', 'PTP', 'VERIFYING'] } }).lean();
+    const total = dues.reduce((s, d) => s + (Number(d.amount) || 0), 0);
     return {
-      replyText: 'You have Rs.' + total.toFixed(2) + ' outstanding across ' + dues.length + ' unpaid dues.',
+      replyText: 'You have Rs.' + total.toFixed(2) + ' outstanding across ' + dues.length + ' active due(s).',
       negotiationOutcome: 'GENERAL_REPLY',
       nextStep: 'dispatch',
     };
@@ -85,8 +88,8 @@ async function negotiatorNode(state) {
   // ── TOP UPCOMING ───────────────────────────────────────────────────────────
   if (intent === 'top_upcoming') {
     const k = (intentData && intentData.topK && intentData.topK > 0) ? intentData.topK : 3;
-    const dues = await Dues.find({ userId }).sort({ dueDate: 1 }).limit(k).lean();
-    const lines = dues.map((d, i) => (i + 1) + '. ' + d.title + ': Rs.' + d.amount + ' due ' + new Date(d.dueDate).toDateString()).join('; ');
+    const dues = await Dues.find({ userId, status: { $in: ['UNPAID', 'OVERDUE', 'PTP', 'VERIFYING'] } }).sort({ dueDate: 1 }).limit(k).lean();
+    const lines = dues.map((d, i) => (i + 1) + '. ' + d.title + ': Rs.' + Number(d.amount).toFixed(2) + ' due ' + new Date(d.dueDate).toDateString()).join('; ');
     return {
       replyText: 'Your top ' + dues.length + ' upcoming dues: ' + lines,
       negotiationOutcome: 'GENERAL_REPLY',
@@ -107,15 +110,15 @@ async function negotiatorNode(state) {
     const safeName = customer.name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
     const pending = await Dues.find({
       userId,
-      status: { $in: ['UNPAID', 'OVERDUE'] },
+      status: { $in: ['UNPAID', 'OVERDUE', 'PTP', 'VERIFYING'] },
       $or: [
         { customerId: customer._id },
         { title: { $regex: safeName, $options: 'i' } }
       ]
     }).lean();
-    const total = pending.reduce((s, d) => s + (d.amount || 0), 0);
+    const total = pending.reduce((s, d) => s + (Number(d.amount) || 0), 0);
     return {
-      replyText: customer.name + ': phone=' + (customer.phone || 'N/A') + ', email=' + (customer.email || 'N/A') + ', status=' + (customer.status || 'Active') + '. Outstanding: Rs.' + total.toFixed(2) + ' across ' + pending.length + ' invoices.',
+      replyText: customer.name + ': phone=' + (customer.contactNo || customer.phone || 'N/A') + ', email=' + (customer.email || 'N/A') + ', status=' + (customer.status || 'Active') + '. Outstanding: Rs.' + total.toFixed(2) + ' across ' + pending.length + ' active invoices.',
       negotiationOutcome: 'GENERAL_REPLY',
       nextStep: 'dispatch',
     };
@@ -138,29 +141,41 @@ async function negotiatorNode(state) {
     if (!due) {
       return { 
         negotiationOutcome: 'GENERAL_REPLY',
-        replyText: 'I could not identify which invoice you paid for. Please create an invoice first or specify which bill you paid.',
+        replyText: 'I could not identify which invoice you paid for. Please specify which customer or bill title you paid.',
         nextStep: 'dispatch' 
       };
     }
 
-    // Handle PARTIAL or FULL payment claims
-    const paymentAmount = intentData && intentData.paymentAmount ? Number(intentData.paymentAmount) : null;
-    const dueAmount = Number(due.amount || 0);
+    // Always fetch fresh due from MongoDB to get 100% accurate current balance
+    const freshDue = due._id ? await Dues.findById(due._id).lean() : due;
+    const dueAmount = Number(freshDue?.amount || due?.amount || 0);
+    const rawPayment = (intentData && intentData.paymentAmount != null) ? Number(intentData.paymentAmount) : null;
     
-    if (paymentAmount && dueAmount > 0 && paymentAmount < dueAmount) {
-      // Partial payment
-      const remaining = dueAmount - paymentAmount;
+    // Strict validation: if payment amount was provided, ensure it is positive
+    if (rawPayment !== null && (isNaN(rawPayment) || rawPayment <= 0)) {
+      return {
+        negotiationOutcome: 'GENERAL_REPLY',
+        replyText: 'Please provide a valid positive payment amount.',
+        nextStep: 'dispatch'
+      };
+    }
+
+    // Partial payment: payment amount is less than current outstanding balance
+    if (rawPayment !== null && rawPayment < dueAmount) {
+      const paymentAmount = Math.round(rawPayment * 100) / 100;
+      const remaining = Math.round((dueAmount - paymentAmount) * 100) / 100;
       return { 
         negotiationOutcome: 'PARTIAL_PAYMENT', 
-        replyText: 'Thank you! Noted your partial payment of Rs.' + paymentAmount + ' for "' + due.title + '". Outstanding: Rs.' + remaining.toFixed(2) + '. We will verify within 1-2 business days.',
+        replyText: `Recorded partial payment of Rs.${paymentAmount.toFixed(2)} for "${freshDue.title}". Remaining balance is Rs.${remaining.toFixed(2)}. Customer and invoice records have been updated.`,
         nextStep: 'needs_compliance' 
       };
     }
     
-    // Full payment or amount not specified
+    // Full payment: either rawPayment >= dueAmount or payment amount not explicitly specified
+    const fullAmount = (rawPayment !== null && rawPayment >= dueAmount) ? rawPayment : dueAmount;
     return { 
       negotiationOutcome: 'PAID', 
-      replyText: 'Thank you! Noted your payment for "' + due.title + '". We will verify within 1-2 business days.', 
+      replyText: `Recorded full payment of Rs.${fullAmount.toFixed(2)} for "${freshDue.title}". Outstanding balance is now Rs.0.00. Customer and invoice records have been updated.`,
       nextStep: 'needs_compliance' 
     };
   }

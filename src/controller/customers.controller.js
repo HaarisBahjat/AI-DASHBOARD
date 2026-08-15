@@ -286,18 +286,25 @@ exports.getCustomerActivity = async (req, res) => {
     // Summary
     const summary = enrichedDues.reduce(
       (acc, due) => {
-        const amount = Number(due.amount) || 0;
+        const currentOutstanding = Number(due.amount) || 0;
+        const totalPaidOnDue = Number(due.metadata?.totalPaid || 0);
+        const originalAmount = Number(due.metadata?.originalAmount || (due.status === 'PAID' ? totalPaidOnDue : currentOutstanding + totalPaidOnDue));
+
         if (due.status === 'PAID') {
-          acc.paidAmount += amount;
+          acc.paidAmount += (totalPaidOnDue > 0 ? totalPaidOnDue : (originalAmount || currentOutstanding));
           acc.paidCount += 1;
         } else {
-          acc.totalDue += amount;
+          acc.totalDue += currentOutstanding;
+          acc.paidAmount += totalPaidOnDue;
           acc.pendingCount += 1;
         }
         return acc;
       },
       { totalDue: 0, paidAmount: 0, pendingCount: 0, paidCount: 0 }
     );
+
+    summary.totalDue = Math.round(summary.totalDue * 100) / 100;
+    summary.paidAmount = Math.round(summary.paidAmount * 100) / 100;
 
     res.status(200).json({
       customer,
